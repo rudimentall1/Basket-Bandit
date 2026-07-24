@@ -1,32 +1,77 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
 <title>Basket Bandit</title>
-<meta name="description" content="Basket Bandit - catch the falling eggs across 4 lanes before you run out of lives!">
-<meta name="theme-color" content="#1b2530">
+
 <link rel="stylesheet" href="style.css">
+
+<link rel="icon" type="image/png" href="assets/favicon/favicon.png">
+
 </head>
+
+
 <body>
 
-  <div id="game-shell">
-    <div id="canvas-wrap">
-      <div id="stage">
+
+<div id="game-wrapper">
+
+
+    <div id="stage">
+
+
         <canvas id="game-canvas"></canvas>
+
+
         <div id="ui-root"></div>
-      </div>
-    </div>
-  </div>
 
-  <div id="loading-screen">
-    <div id="loading-inner">
-      <div id="loading-title">Basket Bandit</div>
-      <div id="loading-bar"><div id="loading-bar-fill"></div></div>
-      <div id="loading-label">Loading assets...</div>
-    </div>
-  </div>
 
-  <script type="module" src="main.js"></script>
+        <div id="loading-screen">
+
+
+            <div class="loading-card">
+
+                <div class="loading-title">
+                    Basket Bandit
+                </div>
+
+
+                <div class="loading-label" id="loading-label">
+                    Loading...
+                </div>
+
+
+                <div class="loading-bar">
+
+                    <div 
+                    id="loading-bar-fill"
+                    class="loading-bar-fill">
+                    </div>
+
+                </div>
+
+
+            </div>
+
+
+        </div>
+
+
+    </div>
+
+
+</div>
+
+
+
+<script type="module" src="main.js"></script>
+
+
 </body>
+
 </html>
