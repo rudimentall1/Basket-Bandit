@@ -1,188 +1,529 @@
 /**
  * player.js
- * -----------------------------------------------------------------------
- * The wolf character. Movement is strictly lane-based: the wolf always
- * occupies one of LANES.count discrete lanes and hops to the neighbouring
- * lane on input - there is no free horizontal roaming. The visual slide
- * between lane centers is a short tween purely for readability/game-feel;
- * it does not add intermediate "positions" the player can stop at.
- *
- * Sprite animation is a small state machine over five real frame sets
- * (idle / run / catch / victory / lose), each advanced at its own frame
- * rate and swapped based on what the wolf is currently doing.
- * -----------------------------------------------------------------------
+ * Basket Bandit
+ * Classic four-position wolf controller
  */
-import { PLAYER, LANES, laneCenterX } from './config.js';
+
+import {
+  PLAYER,
+  LANES,
+  laneCenterX
+} from './config.js';
+
+
 
 const ANIM_FPS = {
+
   idle: 6,
-  run: 14,
-  catch: 24,
-  victory: 10,
+
+  run: 12,
+
+  catch: 20,
+
+  victory: 8,
+
   lose: 8
+
 };
 
-const START_LANE = Math.floor((LANES.count - 1) / 2);
+
+
+const START_LANE = 1;
+
+
 
 export class Player {
-  constructor(images) {
-    this.images = images; // { idle:[Image,...], run:[...], catch:[...], victory:[...], lose:[...] }
 
-    this.laneIndex = START_LANE;
-    this.x = laneCenterX(this.laneIndex);
-    this.targetX = this.x;
-    this.y = PLAYER.groundY;
-    this.width = PLAYER.width;
-    this.height = PLAYER.height;
-    this.facing = 1; // 1 = right, -1 = left
-    this.moving = false; // true while sliding between lane centers
 
-    this.anim = 'idle';
-    this.frame = 0;
-    this.animTime = 0;
-    this.oneShot = false;   // true while playing catch/victory/lose to completion
-    this.onOneShotDone = null;
+constructor(images){
 
-    this.invulnerableTimer = 0;
-  }
 
-  reset() {
-    this.laneIndex = START_LANE;
-    this.x = laneCenterX(this.laneIndex);
-    this.targetX = this.x;
-    this.facing = 1;
-    this.moving = false;
-    this.anim = 'idle';
-    this.frame = 0;
-    this.animTime = 0;
-    this.oneShot = false;
-    this.onOneShotDone = null;
-    this.invulnerableTimer = 0;
-  }
+this.images = images;
 
-  /** Move by +1 / -1 lanes (clamped to the lane range). Used by keyboard input. */
-  moveByLane(delta) {
-    this._goToLane(this.laneIndex + delta);
-  }
 
-  /** Jump straight to an absolute lane index. Used by tap/click-on-lane input. */
-  goToLaneIndex(index) {
-    this._goToLane(index);
-  }
 
-  _goToLane(rawIndex) {
-    const next = Math.max(0, Math.min(LANES.count - 1, rawIndex));
-    if (next === this.laneIndex) return;
-    this.facing = next > this.laneIndex ? 1 : -1;
-    this.laneIndex = next;
-    this.targetX = laneCenterX(next);
-    // A lane switch is a deliberate, immediate player action - it should
-    // never be blocked by a catch flourish still playing out.
-    this._cancelOneShot();
-  }
+this.laneIndex = START_LANE;
 
-  _cancelOneShot() {
-    if (!this.oneShot) return;
-    this.oneShot = false;
-    this.onOneShotDone = null;
-  }
 
-  /** Plays a frame set once, then returns to idle/run and calls onDone(). */
-  playOneShot(name, onDone) {
-    if (!this.images[name] || !this.images[name].length) return;
-    this.anim = name;
-    this.frame = 0;
-    this.animTime = 0;
-    this.oneShot = true;
-    this.onOneShotDone = onDone || null;
-  }
+this.x =
+laneCenterX(this.laneIndex);
 
-  update(dt) {
-    // -------- lane-to-lane slide (visual only, still discrete lanes) --------
-    const dx = this.targetX - this.x;
-    const dist = Math.abs(dx);
-    if (dist > 0.5) {
-      const step = Math.sign(dx) * Math.min(PLAYER.laneMoveSpeed * dt, dist);
-      this.x += step;
-      this.moving = true;
-    } else {
-      this.x = this.targetX;
-      this.moving = false;
-    }
 
-    if (this.invulnerableTimer > 0) this.invulnerableTimer -= dt * 1000;
+this.targetX =
+this.x;
 
-    // -------- animation state selection --------
-    if (!this.oneShot) {
-      const wantAnim = this.moving ? 'run' : 'idle';
-      if (wantAnim !== this.anim) {
-        this.anim = wantAnim;
-        this.frame = 0;
-        this.animTime = 0;
-      }
-    }
 
-    this._advanceFrame(dt);
-  }
 
-  _advanceFrame(dt) {
-    const frames = this.images[this.anim];
-    if (!frames || !frames.length) return;
-    const fps = ANIM_FPS[this.anim] || 10;
-    this.animTime += dt;
-    const frameDur = 1 / fps;
-    while (this.animTime >= frameDur) {
-      this.animTime -= frameDur;
-      this.frame++;
-      if (this.frame >= frames.length) {
-        if (this.oneShot) {
-          this.oneShot = false;
-          const cb = this.onOneShotDone;
-          this.onOneShotDone = null;
-          this.frame = frames.length - 1;
-          if (cb) cb();
-        } else {
-          this.frame = 0;
-        }
-      }
-    }
-  }
+this.y =
+PLAYER.groundY;
 
-  isInvulnerable() {
-    return this.invulnerableTimer > 0;
-  }
 
-  hit() {
-    this.invulnerableTimer = PLAYER.invulnerableMs;
-  }
 
-  /** Catch hitbox: a generous vertical band in the wolf's current lane. */
-  getCatchBox() {
-    const w = this.width * 0.7;
-    const h = this.height * 0.55;
-    return {
-      x: this.x - w / 2,
-      y: this.y - h * 0.65,
-      w, h
-    };
-  }
+this.width =
+PLAYER.width;
 
-  draw(ctx) {
-    const frames = this.images[this.anim];
-    if (!frames || !frames.length) return;
-    const img = frames[Math.min(this.frame, frames.length - 1)];
-    if (!img || !img.complete) return;
 
-    const drawW = this.width;
-    const drawH = this.height;
+this.height =
+PLAYER.height;
 
-    ctx.save();
-    if (this.invulnerableTimer > 0 && Math.floor(this.invulnerableTimer / 80) % 2 === 0) {
-      ctx.globalAlpha = 0.4;
-    }
-    ctx.translate(this.x, this.y);
-    if (this.facing < 0) ctx.scale(-1, 1);
-    ctx.drawImage(img, -drawW / 2, -drawH, drawW, drawH);
-    ctx.restore();
-  }
+
+
+this.anim =
+'idle';
+
+
+this.frame = 0;
+
+
+this.animTime = 0;
+
+
+
+this.moving=false;
+
+
+
+this.oneShot=false;
+
+
+this.onOneShotDone=null;
+
+
+
+this.invulnerableTimer=0;
+
+
+
+}
+
+
+
+
+reset(){
+
+
+this.laneIndex=START_LANE;
+
+
+this.x =
+laneCenterX(this.laneIndex);
+
+
+this.targetX =
+this.x;
+
+
+this.anim='idle';
+
+
+this.frame=0;
+
+
+this.animTime=0;
+
+
+this.moving=false;
+
+
+this.oneShot=false;
+
+
+this.invulnerableTimer=0;
+
+
+
+}
+
+
+
+
+
+/**
+ * Move wolf to one of four classic positions
+ */
+
+moveByLane(delta){
+
+
+let next =
+this.laneIndex + delta;
+
+
+next =
+Math.max(
+0,
+Math.min(
+LANES.count-1,
+next
+));
+
+
+if(next===this.laneIndex)
+return;
+
+
+
+this.laneIndex=next;
+
+
+this.targetX =
+laneCenterX(next);
+
+
+
+this.anim='run';
+
+
+}
+
+
+
+
+
+goToLaneIndex(index){
+
+
+index =
+Math.max(
+0,
+Math.min(
+LANES.count-1,
+index
+));
+
+
+if(index===this.laneIndex)
+return;
+
+
+
+this.laneIndex=index;
+
+
+this.targetX =
+laneCenterX(index);
+
+
+
+this.anim='run';
+
+
+}
+
+
+
+
+update(dt){
+
+
+
+// smooth movement
+
+let dx =
+this.targetX-this.x;
+
+
+if(Math.abs(dx)>1){
+
+
+let speed =
+PLAYER.laneMoveSpeed*dt;
+
+
+this.x +=
+Math.sign(dx)*
+Math.min(
+speed,
+Math.abs(dx)
+);
+
+
+this.moving=true;
+
+
+}
+else{
+
+
+this.x=this.targetX;
+
+
+this.moving=false;
+
+
+}
+
+
+
+
+if(this.invulnerableTimer>0)
+
+this.invulnerableTimer -= dt*1000;
+
+
+
+
+if(!this.oneShot){
+
+
+if(this.moving)
+
+this.setAnimation('run');
+
+
+else
+
+this.setAnimation('idle');
+
+
+}
+
+
+
+this.advanceAnimation(dt);
+
+
+
+}
+
+
+
+
+setAnimation(name){
+
+
+if(this.anim===name)
+return;
+
+
+if(!this.images[name])
+return;
+
+
+this.anim=name;
+
+
+this.frame=0;
+
+
+this.animTime=0;
+
+
+
+}
+
+
+
+
+playCatch(){
+
+
+this.anim='catch';
+
+
+this.frame=0;
+
+
+this.animTime=0;
+
+
+this.oneShot=true;
+
+
+
+}
+
+
+
+
+
+advanceAnimation(dt){
+
+
+let frames =
+this.images[this.anim];
+
+
+if(!frames || !frames.length)
+return;
+
+
+
+this.animTime += dt;
+
+
+
+let speed =
+1/(ANIM_FPS[this.anim]||10);
+
+
+
+while(this.animTime>=speed){
+
+
+this.animTime-=speed;
+
+
+this.frame++;
+
+
+
+if(this.frame>=frames.length){
+
+
+
+if(this.oneShot){
+
+
+this.oneShot=false;
+
+
+this.frame=0;
+
+
+this.anim='idle';
+
+
+
+}
+
+
+else{
+
+
+this.frame=0;
+
+
+}
+
+
+}
+
+
+
+}
+
+
+
+}
+
+
+
+
+/**
+ * Basket catch zone
+ * Not whole body
+ */
+
+getCatchBox(){
+
+
+return {
+
+x:this.x-90,
+
+
+y:this.y-80,
+
+
+w:180,
+
+
+h:100
+
+
+};
+
+
+}
+
+
+
+
+
+hit(){
+
+
+this.invulnerableTimer =
+PLAYER.invulnerableMs;
+
+
+}
+
+
+
+
+
+isInvulnerable(){
+
+
+return this.invulnerableTimer>0;
+
+
+}
+
+
+
+
+draw(ctx){
+
+
+let frames =
+this.images[this.anim];
+
+
+if(!frames || !frames.length)
+return;
+
+
+
+let img =
+frames[
+Math.min(
+this.frame,
+frames.length-1
+)
+];
+
+
+
+if(!img.complete)
+return;
+
+
+
+ctx.save();
+
+
+
+if(this.invulnerableTimer>0)
+
+ctx.globalAlpha =
+0.4;
+
+
+
+ctx.drawImage(
+
+img,
+
+this.x-this.width/2,
+
+this.y-this.height,
+
+this.width,
+
+this.height
+
+);
+
+
+
+ctx.restore();
+
+
+
+}
+
+
 }
