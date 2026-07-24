@@ -1,29 +1,81 @@
 /**
  * ui.js
  * Basket Bandit
- * Classic arcade UI
+ *
+ * HUD + menus
  */
 
-import { GAME_TITLE, PLAYER } from './config.js';
-import { STATE } from './engine.js';
-import { getState, recordRunResult, isStorageAvailable } from './storage.js';
-import { unlockAudio, setMuted, isMuted, playUiClick } from './audio.js';
+
+import {
+  GAME_TITLE,
+  PLAYER
+} from './config.js';
+
+import {
+  STATE
+} from './engine.js';
+
+import {
+  getState,
+  recordRunResult
+} from './storage.js';
+
+import {
+  unlockAudio,
+  setMuted,
+  isMuted,
+  playUiClick
+} from './audio.js';
 
 
-export function initUI(engine, root) {
-
-    engine.getBestScore = () => getState().bestScore || 0;
 
 
-    const el = buildDOM(root);
 
-    wireButtons(engine, el);
-    wireEvents(engine, el);
+export function initUI(engine,root){
 
 
-    engine.goToMenu();
 
-    return el;
+const el=createUI(root);
+
+
+
+engine.events.on(
+'stateChange',
+state=>renderState(state,el)
+);
+
+
+
+engine.events.on(
+'scoreUpdate',
+data=>updateHUD(data,el)
+);
+
+
+
+engine.events.on(
+'runEnded',
+result=>showGameOver(result,el)
+);
+
+
+
+wireButtons(
+engine,
+el
+);
+
+
+
+renderState(
+STATE.MENU,
+el
+);
+
+
+
+engine.goToMenu();
+
 
 }
 
@@ -31,16 +83,23 @@ export function initUI(engine, root) {
 
 
 
-function create(tag, cls, text='') {
 
-    const e=document.createElement(tag);
 
-    if(cls)
-        e.className=cls;
+function create(tag,cls,text=''){
 
-    e.textContent=text;
 
-    return e;
+let e=document.createElement(tag);
+
+
+if(cls)
+e.className=cls;
+
+
+e.innerHTML=text;
+
+
+return e;
+
 
 }
 
@@ -48,264 +107,292 @@ function create(tag, cls, text='') {
 
 
 
-function buildDOM(root){
 
 
-    root.innerHTML='';
+function createUI(root){
 
 
 
-    /*
-        HUD
-    */
+root.innerHTML='';
 
-    const hud=create('div','hud');
 
 
-    const row=create('div','hud-row');
 
+const hud=create(
+'div',
+'hud'
+);
 
-    const lives=create('div','hud-lives');
 
 
-    const lifeIcons=[];
+const lives=create(
+'div',
+'hud-lives'
+);
 
 
-    for(let i=0;i<PLAYER.maxLives;i++){
 
-        const h=create('span','life','❤');
+let hearts=[];
 
-        lives.appendChild(h);
 
-        lifeIcons.push(h);
 
-    }
+for(
+let i=0;i<PLAYER.maxLives;i++
+){
 
 
+let h=create(
+'span',
+'life',
+'❤'
+);
 
-    const score=create('div','hud-score','0');
 
+lives.appendChild(h);
 
-    const level=create('div','hud-level','Level 1');
 
+hearts.push(h);
 
-    score.appendChild(level);
 
+}
 
 
-    const pause=create('button','icon-btn','Ⅱ');
 
 
-    const mute=create('button','icon-btn','🔊');
 
+const score=create(
+'div',
+'hud-score',
+'0'
+);
 
 
-    row.appendChild(lives);
-    row.appendChild(score);
-    row.appendChild(mute);
-    row.appendChild(pause);
 
+const level=create(
+'div',
+'hud-level',
+'Level 1'
+);
 
 
-    const combo=create('div','hud-combo');
 
+score.appendChild(level);
 
-    hud.appendChild(row);
-    hud.appendChild(combo);
 
 
+const mute=create(
+'button',
+'icon-btn',
+'🔊'
+);
 
 
 
-    /*
-       MENU
-    */
+const pause=create(
+'button',
+'icon-btn',
+'Ⅱ'
+);
 
 
-    const menu=create('div','screen');
 
+hud.appendChild(lives);
 
-    const card=create('div','menu-card');
+hud.appendChild(score);
 
+hud.appendChild(mute);
 
-    const title=create(
-        'div',
-        'game-title',
-        GAME_TITLE
-    );
+hud.appendChild(pause);
 
 
-    const subtitle=create(
-        'div',
-        'game-sub',
-        'Catch falling eggs!'
-    );
 
 
-    const best=create(
-        'div',
-        'menu-stat'
-    );
 
+const menu=create(
+'div',
+'screen'
+);
 
-    const start=create(
-        'button',
-        'btn btn--primary',
-        'START GAME'
-    );
 
 
-    card.appendChild(title);
-    card.appendChild(subtitle);
-    card.appendChild(best);
-    card.appendChild(start);
+const card=create(
+'div',
+'menu-card'
+);
 
 
-    menu.appendChild(card);
 
+card.innerHTML=
+`
+<div class="game-title">
+${GAME_TITLE}
+</div>
 
+<div class="game-sub">
+Catch falling eggs!
+</div>
 
+<div class="menu-stat"></div>
 
+<button class="btn btn--primary">
+START GAME
+</button>
+`;
 
-    /*
-       PAUSE
-    */
 
 
-    const pauseScreen=create('div','screen');
+menu.appendChild(card);
 
 
-    const pauseCard=create('div','menu-card');
 
 
-    pauseCard.appendChild(
-        create(
-            'div',
-            'game-title',
-            'PAUSED'
-        )
-    );
 
 
-    const resume=create(
-        'button',
-        'btn btn--primary',
-        'RESUME'
-    );
+const start=
+card.querySelector(
+'button'
+);
 
 
-    const restartPause=create(
-        'button',
-        'btn btn--ghost',
-        'RESTART'
-    );
 
+const best=
+card.querySelector(
+'.menu-stat'
+);
 
-    pauseCard.appendChild(resume);
-    pauseCard.appendChild(restartPause);
 
 
-    pauseScreen.appendChild(pauseCard);
 
 
 
+const pauseScreen=create(
+'div',
+'screen'
+);
 
 
-    /*
-       GAME OVER
-    */
 
+pauseScreen.innerHTML=
+`
+<div class="menu-card">
 
-    const over=create('div','screen');
+<div class="game-title">
+PAUSED
+</div>
 
+<button class="btn btn--primary">
+RESUME
+</button>
 
-    const overCard=create('div','menu-card');
+<button class="btn btn--ghost">
+RESTART
+</button>
 
+</div>
+`;
 
-    const overTitle=create(
-        'div',
-        'game-title',
-        'GAME OVER'
-    );
 
 
-    const result=create(
-        'div',
-        'gameover-score'
-    );
 
 
-    const restart=create(
-        'button',
-        'btn btn--primary',
-        'PLAY AGAIN'
-    );
 
 
-    const menuBtn=create(
-        'button',
-        'btn btn--ghost',
-        'MENU'
-    );
+const gameOver=create(
+'div',
+'screen'
+);
 
 
-    overCard.appendChild(overTitle);
-    overCard.appendChild(result);
-    overCard.appendChild(restart);
-    overCard.appendChild(menuBtn);
 
+gameOver.innerHTML=
+`
+<div class="menu-card">
 
-    over.appendChild(overCard);
+<div class="game-title">
+GAME OVER
+</div>
 
+<div class="gameover-score"></div>
 
+<button class="btn btn--primary">
+PLAY AGAIN
+</button>
 
-    root.appendChild(hud);
-    root.appendChild(menu);
-    root.appendChild(pauseScreen);
-    root.appendChild(over);
+<button class="btn btn--ghost">
+MENU
+</button>
 
+</div>
+`;
 
 
-    return {
 
-        hud,
 
-        lifeIcons,
 
-        score,
 
-        level,
+root.appendChild(hud);
 
-        combo,
+root.appendChild(menu);
 
-        pause,
+root.appendChild(pauseScreen);
 
-        mute,
+root.appendChild(gameOver);
 
 
-        menu,
 
-        best,
 
-        start,
 
+return {
 
-        pauseScreen,
 
-        resume,
+hud,
 
-        restartPause,
+hearts,
 
+score,
 
-        over,
+level,
 
-        result,
+mute,
 
-        restart,
+pause,
 
-        menuBtn
 
-    };
+menu,
+
+start,
+
+best,
+
+
+pauseScreen,
+
+
+resume:
+pauseScreen.querySelector('.btn--primary'),
+
+
+restartPause:
+pauseScreen.querySelector('.btn--ghost'),
+
+
+overScreen:gameOver,
+
+
+playAgain:
+gameOver.querySelector('.btn--primary'),
+
+
+menuButton:
+gameOver.querySelector('.btn--ghost'),
+
+
+overScore:
+gameOver.querySelector('.gameover-score')
+
+
+};
+
 
 }
 
@@ -318,52 +405,85 @@ function buildDOM(root){
 function wireButtons(engine,el){
 
 
-    const click=(fn)=>(e)=>{
 
-        unlockAudio();
-
-        playUiClick();
-
-        fn();
-
-    };
+function click(fn){
 
 
+return ()=>{
 
-    el.start.onclick =
-        click(()=>engine.startRun());
+unlockAudio();
 
+playUiClick();
 
-    el.restart.onclick =
-        click(()=>engine.startRun());
+fn();
 
-
-    el.restartPause.onclick =
-        click(()=>engine.startRun());
+};
 
 
-    el.resume.onclick =
-        click(()=>engine.resume());
-
-
-    el.menuBtn.onclick =
-        click(()=>engine.goToMenu());
+}
 
 
 
-    el.pause.onclick =
-        click(()=>engine.pause());
+
+el.start.onclick=
+click(
+()=>engine.startRun()
+);
 
 
 
-    el.mute.onclick=()=>{
+el.playAgain.onclick=
+click(
+()=>engine.startRun()
+);
 
-        setMuted(!isMuted());
 
-        el.mute.textContent =
-            isMuted()?'🔇':'🔊';
 
-    };
+el.pause.onclick=
+click(
+()=>engine.pause()
+);
+
+
+
+el.resume.onclick=
+click(
+()=>engine.resume()
+);
+
+
+
+el.restartPause.onclick=
+click(
+()=>engine.startRun()
+);
+
+
+
+el.menuButton.onclick=
+click(
+()=>engine.goToMenu()
+);
+
+
+
+
+
+el.mute.onclick=
+()=>{
+
+setMuted(
+!isMuted()
+);
+
+
+el.mute.innerHTML=
+isMuted()?'🔇':'🔊';
+
+
+};
+
+
 
 }
 
@@ -372,27 +492,50 @@ function wireButtons(engine,el){
 
 
 
-function wireEvents(engine,el){
 
 
-    engine.events.on(
-        'stateChange',
-        state=>render(state,el)
-    );
+function renderState(state,el){
 
 
 
-    engine.events.on(
-        'scoreUpdate',
-        data=>updateHUD(data,el)
-    );
+el.menu.style.display=
+state===STATE.MENU?
+'flex':'none';
 
 
 
-    engine.events.on(
-        'runEnded',
-        data=>showGameOver(data,el)
-    );
+el.pauseScreen.style.display=
+state===STATE.PAUSED?
+'flex':'none';
+
+
+
+el.overScreen.style.display=
+state===STATE.GAMEOVER?
+'flex':'none';
+
+
+
+el.hud.style.display=
+state===STATE.MENU?
+'none':'flex';
+
+
+
+
+if(state===STATE.MENU){
+
+
+let s=getState();
+
+
+el.best.textContent=
+s.bestScore?
+`Best: ${s.bestScore}`:
+'Best: 0';
+
+
+}
 
 
 }
@@ -401,84 +544,42 @@ function wireEvents(engine,el){
 
 
 
-function render(state,el){
-
-
-    el.menu.style.display =
-        state===STATE.MENU?'flex':'none';
-
-
-    el.pauseScreen.style.display =
-        state===STATE.PAUSED?'flex':'none';
-
-
-    el.over.style.display =
-        state===STATE.GAMEOVER?'flex':'none';
 
 
 
-    el.hud.style.display =
-        state===STATE.MENU?'none':'block';
+function updateHUD(data,el){
 
 
 
-    if(state===STATE.MENU){
+el.score.firstChild.nodeValue=
+data.score;
 
-        const best=getState().bestScore||0;
 
-        el.best.textContent =
-            best?
-            `Best: ${best}`:
-            'No record yet';
 
-    }
+el.level.textContent=
+`Level ${data.level}`;
+
+
+
+
+
+el.hearts.forEach(
+(h,i)=>{
+
+
+h.style.opacity=
+i<data.lives?
+'1':
+'0.25';
+
+
+}
+);
+
 
 
 }
 
-
-
-
-
-function updateHUD(s,el){
-
-
-    el.score.firstChild.textContent=s.score;
-
-
-    el.level.textContent=
-        `Level ${s.level}`;
-
-
-
-    el.lifeIcons.forEach(
-        (x,i)=>
-        x.style.opacity =
-        i<s.lives?'1':'0.25'
-    );
-
-
-
-    if(s.combo>1){
-
-        el.combo.textContent =
-        `COMBO x${s.combo}`;
-
-        el.combo.classList.add(
-            'hud-combo--active'
-        );
-
-    }
-    else{
-
-        el.combo.classList.remove(
-            'hud-combo--active'
-        );
-
-    }
-
-
-}
 
 
 
@@ -489,27 +590,26 @@ function updateHUD(s,el){
 function showGameOver(result,el){
 
 
-    recordRunResult({
 
-        runScore:result.score,
+let saved=
+recordRunResult({
 
-        runLevel:result.level,
+runScore:result.score,
 
-        catchesThisRun:
-        result.catchesThisRun,
+runLevel:result.level,
 
-        bestComboThisRun:
-        result.bestComboThisRun,
+catchesThisRun:result.catchesThisRun,
 
-        missesThisRun:
-        result.missesThisRun
+missesThisRun:result.missesThisRun,
 
-    });
+bestComboThisRun:0
 
+});
 
 
-    el.result.textContent =
-        `Score ${result.score}`;
+
+el.overScore.textContent=
+`Score: ${result.score} | Best: ${saved.state.bestScore}`;
 
 
 }

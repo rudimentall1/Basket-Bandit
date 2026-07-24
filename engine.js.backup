@@ -1,15 +1,21 @@
 /**
  * engine.js
  * Basket Bandit
+ * Classic "Nu, Pogodi!" style gameplay engine
  *
- * Main game controller
+ * Wolf moves between 4 fixed lanes.
+ * Eggs fall vertically from chickens.
+ * Catch with basket.
  */
 
 import {
   DESIGN_WIDTH,
   DESIGN_HEIGHT,
   PLAYER,
-  LANES
+  EGG,
+  LANES,
+  laneCenterX,
+  laneWidth
 } from './config.js';
 
 import { Player } from './player.js';
@@ -19,138 +25,106 @@ import { getDifficultyForScore } from './levels.js';
 import * as audio from './audio.js';
 
 
+class EventEmitter {
 
-class EventEmitter{
+  constructor(){
+    this.listeners={};
+  }
 
+  on(name,fn){
+    (this.listeners[name] ||= []).push(fn);
+  }
 
-constructor(){
-
-this.listeners={};
-
+  emit(name,data){
+    (this.listeners[name]||[]).forEach(fn=>{
+      try{
+        fn(data);
+      }catch(e){
+        console.error(e);
+      }
+    });
+  }
 }
 
 
-on(name,fn){
+export const STATE = Object.freeze({
 
-(this.listeners[name] ||= []).push(fn);
+  LOADING:'loading',
+  MENU:'menu',
+  PLAYING:'playing',
+  PAUSED:'paused',
+  GAMEOVER:'gameover'
 
-}
-
-
-emit(name,data){
-
-(this.listeners[name]||[]).forEach(
-fn=>{
-try{
-fn(data);
-}
-catch(e){
-console.error(e);
-}
-}
-);
-
-}
+});
 
 
-}
+const SWIPE_DISTANCE = 40;
 
 
 
-export const STATE={
-
-LOADING:'loading',
-
-MENU:'menu',
-
-PLAYING:'playing',
-
-PAUSED:'paused',
-
-GAMEOVER:'gameover'
-
-};
-
-
-
-
-const SWIPE_DISTANCE=40;
-
-
-
-export class GameEngine{
+export class GameEngine {
 
 
 constructor(canvas,images){
 
+  this.canvas=canvas;
 
-this.canvas=canvas;
+  this.ctx=canvas.getContext(
+    '2d',
+    {alpha:false}
+  );
 
-this.ctx=canvas.getContext(
-'2d',
-{alpha:false}
-);
+  this.images=images;
 
-
-this.images=images;
-
-
-this.events=new EventEmitter();
+  this.events=new EventEmitter();
 
 
-
-this.player=new Player(
-images.player
-);
-
+  this.player=new Player(
+    images.player
+  );
 
 
-this.spawner=new ItemSpawner(
-images.egg,
-images.chickens
-);
+  this.spawner=new ItemSpawner(
+    images.egg
+  );
 
 
-
-this.state=STATE.LOADING;
-
-
-this.lastTime=0;
+  this.state=STATE.LOADING;
 
 
-this.spawnTimer=0;
+  this.lastTime=0;
+
+  this.spawnTimer=0;
 
 
-this.scoreState=this.newGame();
+  // последовательность куриц
+  this.nextEggLane=0;
 
 
-
-this.resizeHandler=
-()=>this.resize();
+  this.scoreState=this.newGame();
 
 
-
-window.addEventListener(
-'resize',
-this.resizeHandler
-);
+  this.chickenBob=0;
 
 
+  this._resizeHandler=()=>this.resize();
 
-this.bindInput();
+
+  window.addEventListener(
+    'resize',
+    this._resizeHandler
+  );
 
 
-this.resize();
+  this.bindInput();
 
+  this.resize();
 
 }
 
 
 
-
-
 newGame(){
-
 
 return {
 
@@ -158,19 +132,19 @@ score:0,
 
 lives:PLAYER.startLives,
 
-level:1,
-
 catchesThisRun:0,
 
 missesThisRun:0,
 
-bestComboThisRun:0
+level:1,
+
+fallSpeed:220,
+
+spawnInterval:1400
 
 };
 
-
 }
-
 
 
 
@@ -188,8 +162,6 @@ this.state
 
 
 
-
-
 startRun(){
 
 
@@ -198,23 +170,29 @@ this.scoreState=this.newGame();
 
 this.player.reset();
 
-
 this.spawner.reset();
 
 
+this.spawnTimer=700;
 
-this.spawnTimer=500;
+
+this.nextEggLane=
+Math.floor(
+Math.random()*LANES.count
+);
+
+
+
+effects.resetEffects();
 
 
 this.state=STATE.PLAYING;
-
 
 
 this.events.emit(
 'stateChange',
 this.state
 );
-
 
 
 this.events.emit(
@@ -224,8 +202,6 @@ this.hud()
 
 
 }
-
-
 
 
 
@@ -244,8 +220,8 @@ this.events.emit(
 this.state
 );
 
-}
 
+}
 
 
 
@@ -258,17 +234,13 @@ return;
 this.state=STATE.PLAYING;
 
 
-this.lastTime=
-performance.now();
+this.lastTime=performance.now();
 
 }
 
 
 
-
-
 bindInput(){
-
 
 
 window.addEventListener(
@@ -278,7 +250,6 @@ e=>{
 
 if(this.state!==STATE.PLAYING)
 return;
-
 
 
 if(
@@ -291,7 +262,6 @@ this.player.moveByLane(-1);
 }
 
 
-
 if(
 e.key==='ArrowRight' ||
 e.key==='d'
@@ -302,14 +272,10 @@ this.player.moveByLane(1);
 }
 
 
-
 });
 
 
-
-
-
-let startX=null;
+let start=null;
 
 
 
@@ -324,12 +290,10 @@ return;
 audio.unlockAudio();
 
 
-startX=e.clientX;
+start=e.clientX;
 
 
 });
-
-
 
 
 
@@ -338,13 +302,11 @@ window.addEventListener(
 e=>{
 
 
-if(startX===null)
+if(start===null)
 return;
 
 
-
-let dx=e.clientX-startX;
-
+let dx=e.clientX-start;
 
 
 if(Math.abs(dx)>SWIPE_DISTANCE){
@@ -356,71 +318,50 @@ dx>0?1:-1
 }
 
 
-startX=null;
+start=null;
 
 
 });
-
 
 
 }
 
 
 
-
-
-
-
 resize(){
 
-
-const stage=
-this.canvas.parentElement;
-
-
-const wrap=
-stage.parentElement;
-
+const stage=this.canvas.parentElement;
+const wrap=stage.parentElement;
 
 
 let w=wrap.clientWidth;
-
 let h=wrap.clientHeight;
-
 
 
 let ratio=
 DESIGN_WIDTH/DESIGN_HEIGHT;
 
 
-
 let cw=w;
-
 let ch=w/ratio;
-
 
 
 if(ch>h){
 
 ch=h;
-
 cw=h*ratio;
 
 }
 
 
-
 stage.style.width=cw+'px';
-
 stage.style.height=ch+'px';
-
 
 
 let dpr=Math.min(
 window.devicePixelRatio||1,
-2
+2.5
 );
-
 
 
 this.canvas.width=
@@ -431,20 +372,12 @@ this.canvas.height=
 DESIGN_HEIGHT*dpr;
 
 
-
 this.ctx.setTransform(
-dpr,
-0,
-0,
-dpr,
-0,
-0
+dpr,0,0,dpr,0,0
 );
 
 
 }
-
-
 
 
 
@@ -452,15 +385,11 @@ dpr,
 
 start(){
 
-
-this.lastTime=
-performance.now();
-
+this.lastTime=performance.now();
 
 requestAnimationFrame(
 t=>this.loop(t)
 );
-
 
 }
 
@@ -468,9 +397,7 @@ t=>this.loop(t)
 
 
 
-
 loop(t){
-
 
 let dt=
 (t-this.lastTime)/1000;
@@ -490,8 +417,7 @@ this.update(dt);
 }
 
 
-
-this.draw();
+this.draw(dt);
 
 
 
@@ -501,9 +427,6 @@ x=>this.loop(x)
 
 
 }
-
-
-
 
 
 
@@ -521,8 +444,11 @@ s.score
 );
 
 
-
 s.level=diff.level;
+
+s.fallSpeed=diff.fallSpeed;
+
+s.spawnInterval=diff.spawnInterval;
 
 
 
@@ -533,24 +459,36 @@ this.spawnTimer-=dt*1000;
 if(this.spawnTimer<=0){
 
 
+
 this.spawner.spawn(
-diff.fallSpeed
+
+s.fallSpeed,
+
+this.nextEggLane
+
 );
 
 
+
+this.nextEggLane++;
+
+
+if(
+this.nextEggLane>=LANES.count
+)
+this.nextEggLane=0;
+
+
+
 this.spawnTimer=
-diff.spawnInterval;
+s.spawnInterval;
 
 
 }
 
 
 
-
-
-
 this.player.update(dt);
-
 
 
 
@@ -560,10 +498,8 @@ this.spawner.update(dt);
 
 
 missed.forEach(
-()=>this.miss()
+x=>this.miss(x)
 );
-
-
 
 
 
@@ -575,11 +511,8 @@ this.player.getCatchBox()
 
 
 caught.forEach(
-egg=>this.catch(egg)
+x=>this.catch(x)
 );
-
-
-
 
 
 
@@ -590,17 +523,13 @@ this.gameOver();
 }
 
 
-
 this.events.emit(
 'scoreUpdate',
 this.hud()
 );
 
 
-
 }
-
-
 
 
 
@@ -612,22 +541,33 @@ catch(item){
 let s=this.scoreState;
 
 
-s.score+=10;
-
-
 s.catchesThisRun++;
 
 
-
-this.player.playCatch();
+s.score+=EGG.score;
 
 
 
 effects.spawnScorePopup(
 item.x,
 item.y,
-'+10',
-'#ffffff'
+'+'+EGG.score,
+'#fff6cf'
+);
+
+
+
+effects.spawnBurst(
+item.x,
+item.y,
+'#fff1c4',
+10
+);
+
+
+
+this.player.playOneShot(
+'catch'
 );
 
 
@@ -646,10 +586,10 @@ miss(){
 let s=this.scoreState;
 
 
-s.lives--;
-
-
 s.missesThisRun++;
+
+
+s.lives--;
 
 
 this.player.hit();
@@ -662,12 +602,7 @@ audio.playMiss();
 
 
 
-
-
-
-
 hud(){
-
 
 let s=this.scoreState;
 
@@ -691,14 +626,9 @@ multiplier:1
 
 
 
-
-
-
 gameOver(){
 
-
 this.state=STATE.GAMEOVER;
-
 
 
 this.events.emit(
@@ -707,27 +637,19 @@ this.state
 );
 
 
-
 this.events.emit(
 'runEnded',
 this.scoreState
 );
 
 
-
 }
 
 
 
-
-
-
-
-draw(){
-
+draw(dt){
 
 let ctx=this.ctx;
-
 
 
 ctx.clearRect(
@@ -739,8 +661,7 @@ DESIGN_HEIGHT
 
 
 
-this.drawBackground();
-
+this.drawBackground(dt);
 
 
 if(
@@ -748,29 +669,23 @@ this.state===STATE.PLAYING ||
 this.state===STATE.GAMEOVER
 ){
 
-
 this.spawner.draw(ctx);
-
 
 this.player.draw(ctx);
 
-
 effects.drawEffects(ctx);
 
+}
+
 
 }
 
 
 
-}
+drawBackground(dt){
 
 
-
-
-
-
-
-drawBackground(){
+let ctx=this.ctx;
 
 
 let bg=this.images.background;
@@ -780,37 +695,33 @@ if(bg && bg.complete){
 
 
 let scale=Math.max(
-
 DESIGN_WIDTH/bg.width,
-
 DESIGN_HEIGHT/bg.height
-
 );
 
 
-
-this.ctx.drawImage(
-
+ctx.drawImage(
 bg,
-
 0,
-
 0,
-
 bg.width*scale,
-
 bg.height*scale
-
 );
 
 
 }
 
 
-
 }
 
+destroy(){
 
+window.removeEventListener(
+'resize',
+this._resizeHandler
+);
+
+}
 
 
 }

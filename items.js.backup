@@ -2,7 +2,8 @@
  * items.js
  * Basket Bandit
  *
- * Eggs + chicken lanes system
+ * Egg system.
+ * Classic Nu Pogodi gameplay.
  */
 
 import {
@@ -13,14 +14,13 @@ import {
 } from './config.js';
 
 
+
 export class ItemSpawner {
 
 
-constructor(eggFrames, chickens=[]){
+constructor(eggFrames){
 
 this.eggFrames = eggFrames || [];
-
-this.chickens = chickens || [];
 
 this.items=[];
 
@@ -30,11 +30,8 @@ this.animTimer=0;
 
 this.animFrame=0;
 
-this.chickenFrame=0;
-
-this.chickenTimer=0;
-
 }
+
 
 
 
@@ -48,25 +45,19 @@ this.animTimer=0;
 
 this.animFrame=0;
 
-this.chickenFrame=0;
-
-this.chickenTimer=0;
-
 }
 
 
 
 
-spawn(fallSpeed, lane=null){
+
+spawn(fallSpeed){
 
 
-if(lane===null){
-
-lane=Math.floor(
+const lane =
+Math.floor(
 Math.random()*LANES.count
 );
-
-}
 
 
 
@@ -78,15 +69,13 @@ lane,
 
 x:laneCenterX(lane),
 
-y:170,
+y:180,
 
 speed:fallSpeed,
 
 caught:false,
 
-missed:false,
-
-broken:false
+missed:false
 
 });
 
@@ -96,24 +85,29 @@ broken:false
 
 
 
+
 update(dt){
 
 
-this.animTimer+=dt;
+this.animTimer += dt;
 
-if(this.animTimer > 1/EGG.wobbleFps){
+
+if(
+this.animTimer >
+1/EGG.wobbleFps
+){
 
 this.animTimer=0;
 
+
 if(this.eggFrames.length){
 
-this.animFrame++;
-
-if(this.animFrame>=this.eggFrames.length){
-
-this.animFrame=0;
-
-}
+this.animFrame =
+(
+this.animFrame+1
+)
+%
+this.eggFrames.length;
 
 }
 
@@ -124,11 +118,15 @@ this.animFrame=0;
 const missed=[];
 
 
+
 for(const egg of this.items){
 
 
-if(egg.caught)
+if(
+egg.caught
+)
 continue;
+
 
 
 egg.y += egg.speed*dt;
@@ -151,8 +149,11 @@ missed.push(egg);
 
 
 
-this.items=this.items.filter(
-e=>!e.caught && !e.missed
+this.items =
+this.items.filter(
+egg =>
+!egg.caught &&
+!egg.missed
 );
 
 
@@ -196,6 +197,7 @@ egg.y < box.y+box.h
 
 egg.caught=true;
 
+
 caught.push(egg);
 
 
@@ -215,119 +217,46 @@ return caught;
 
 
 
-
 draw(ctx){
 
-
-/*
- chicken animation
- */
-
-
-this.chickenTimer+=0.05;
-
-
-if(this.chickenTimer>8){
-
-this.chickenTimer=0;
-
-this.chickenFrame++;
-
-if(
-this.chickenFrame>=this.chickens.length
-){
-
-this.chickenFrame=0;
-
-}
-
-}
-
-
-
-
-/*
- draw chickens
- */
-
-
-for(let i=0;i<LANES.count;i++){
-
-
-const chicken=
-this.chickens[
-i % this.chickens.length
-];
-
-
-if(chicken && chicken.complete){
-
-
-ctx.drawImage(
-
-chicken,
-
-laneCenterX(i)-60,
-
-40,
-
-120,
-
-120
-
-);
-
-
-}
-
-
-}
-
-
-
-
-
-/*
- draw eggs
- */
 
 
 for(const egg of this.items){
 
 
-let img=null;
+if(egg.caught)
+continue;
 
 
-if(this.eggFrames.length){
 
-img=this.eggFrames[
-this.animFrame %
-this.eggFrames.length
+const img =
+this.eggFrames[
+this.animFrame
 ];
 
-}
 
 
+if(
+!img ||
+!img.complete
+)
+continue;
 
-if(img && img.complete){
 
 
 ctx.drawImage(
 
 img,
 
-egg.x-30,
+egg.x-EGG.radius,
 
-egg.y-30,
+egg.y-EGG.radius,
 
-60,
+EGG.radius*2,
 
-60
+EGG.radius*2
 
 );
-
-
-}
 
 
 }
