@@ -1,8 +1,7 @@
-
 /**
  * config.js
  * Basket Bandit
- * Final configuration
+ * Classic Nu Pogodi style
  */
 
 
@@ -13,27 +12,25 @@ export const DESIGN_WIDTH = 720;
 export const DESIGN_HEIGHT = 1280;
 
 
+
 // -----------------------------
 // LANES
 // -----------------------------
 
 export const LANES = {
-    count: 4
+    count:4
 };
 
 
 export function laneWidth(){
-
     return DESIGN_WIDTH / LANES.count;
-
 }
 
 
 export function laneCenterX(index){
-
-    return laneWidth() * index + laneWidth()/2;
-
+    return laneWidth()*index + laneWidth()/2;
 }
+
 
 
 
@@ -53,37 +50,37 @@ player:{
 
 
 idle:{
-    dir:'assets/player/idle',
-    prefix:'idle',
-    count:4
+dir:'assets/player/idle',
+prefix:'idle',
+count:4
 },
 
 
 run:{
-    dir:'assets/player/run',
-    prefix:'run',
-    count:7
+dir:'assets/player/run',
+prefix:'run',
+count:7
 },
 
 
 catch:{
-    dir:'assets/player/catch',
-    prefix:'catch',
-    count:8
+dir:'assets/player/catch',
+prefix:'catch',
+count:8
 },
 
 
 victory:{
-    dir:'assets/player/victory',
-    prefix:'victory',
-    count:6
+dir:'assets/player/victory',
+prefix:'victory',
+count:6
 },
 
 
 lose:{
-    dir:'assets/player/lose',
-    prefix:'lose',
-    count:7
+dir:'assets/player/lose',
+prefix:'lose',
+count:7
 }
 
 
@@ -103,26 +100,32 @@ chickens:[
 
 
 
-egg:[
 
-'assets/items/egg/egg_white.png',
-'assets/items/egg/egg_brown.png',
-'assets/items/egg/egg_golden.png',
-'assets/items/egg/egg_cracked.png'
+egg:{
 
-]
+dir:
+'assets/items/egg',
+
+prefix:
+'egg',
+
+count:
+4
+
+}
 
 
 };
 
 
 
+
 // -----------------------------
-// GAME
+// EGG
 // -----------------------------
 
 
-export const EGG = {
+export const EGG={
 
 radius:30,
 
@@ -134,23 +137,36 @@ wobbleFps:6
 
 
 
-export const PLAYER = {
+
+// -----------------------------
+// PLAYER
+// -----------------------------
+
+
+export const PLAYER={
+
 
 width:160,
 
 height:210,
 
-groundY: DESIGN_HEIGHT-170,
+
+groundY:
+DESIGN_HEIGHT-170,
+
 
 laneMoveSpeed:2200,
 
+
 startLives:3,
 
-maxLives:5,
+maxLives:3,
+
 
 invulnerableMs:700
 
 };
+
 
 
 
@@ -205,11 +221,6 @@ spawnInterval:610
 ];
 
 
-export const MAX_FALL_SPEED=700;
-
-export const MAX_SPAWN_RATE_MS=380;
-
-
 
 export const COMBO={
 
@@ -223,12 +234,7 @@ maxMultiplier:3
 
 
 
-// -----------------------------
-// SAVE
-// -----------------------------
-
 export const ACHIEVEMENTS=[];
-
 
 export const DAILY_CHALLENGES=[];
 
