@@ -1,7 +1,12 @@
 /**
  * player.js
+ * -----------------------------------------------------------------------
  * Basket Bandit
- * Classic four-position wolf controller
+ * Classic "Nu, Pogodi!" style wolf controller
+ *
+ * Wolf moves between 4 fixed lanes and catches falling eggs
+ * with a wide basket hitbox.
+ * -----------------------------------------------------------------------
  */
 
 import {
@@ -11,519 +16,449 @@ import {
 } from './config.js';
 
 
-
 const ANIM_FPS = {
-
   idle: 6,
-
   run: 12,
-
   catch: 20,
-
   victory: 8,
-
   lose: 8
-
 };
-
 
 
 const START_LANE = 1;
 
 
-
 export class Player {
 
+  constructor(images) {
 
-constructor(images){
+    this.images = images;
 
+    this.laneIndex = START_LANE;
 
-this.images = images;
+    this.x = laneCenterX(this.laneIndex);
+    this.targetX = this.x;
 
+    this.y = PLAYER.groundY;
 
+    this.width = PLAYER.width;
+    this.height = PLAYER.height;
 
-this.laneIndex = START_LANE;
 
+    this.anim = 'idle';
 
-this.x =
-laneCenterX(this.laneIndex);
+    this.frame = 0;
+    this.animTime = 0;
 
 
-this.targetX =
-this.x;
+    this.moving = false;
 
 
+    this.oneShot = false;
 
-this.y =
-PLAYER.groundY;
 
+    this.invulnerableTimer = 0;
 
 
-this.width =
-PLAYER.width;
+    this.catchFlash = 0;
 
+  }
 
-this.height =
-PLAYER.height;
 
 
+  reset() {
 
-this.anim =
-'idle';
+    this.laneIndex = START_LANE;
 
+    this.x = laneCenterX(this.laneIndex);
+    this.targetX = this.x;
 
-this.frame = 0;
 
+    this.anim = 'idle';
 
-this.animTime = 0;
+    this.frame = 0;
+    this.animTime = 0;
 
 
+    this.moving = false;
 
-this.moving=false;
+    this.oneShot = false;
 
+    this.invulnerableTimer = 0;
 
+    this.catchFlash = 0;
 
-this.oneShot=false;
+  }
 
 
-this.onOneShotDone=null;
 
+  /*
+   * Move wolf left/right like classic arcade.
+   */
+  moveByLane(delta) {
 
+    let next =
+      this.laneIndex + delta;
 
-this.invulnerableTimer=0;
 
+    next = Math.max(
+      0,
+      Math.min(
+        LANES.count - 1,
+        next
+      )
+    );
 
 
-}
+    if(next === this.laneIndex)
+      return;
 
 
+    this.laneIndex = next;
 
+    this.targetX =
+      laneCenterX(next);
 
-reset(){
 
+    this.setAnimation('run');
 
-this.laneIndex=START_LANE;
+  }
 
 
-this.x =
-laneCenterX(this.laneIndex);
 
+  /*
+   * Tap directly on lane.
+   */
+  goToLaneIndex(index) {
 
-this.targetX =
-this.x;
+    index = Math.max(
+      0,
+      Math.min(
+        LANES.count - 1,
+        index
+      )
+    );
 
 
-this.anim='idle';
+    if(index === this.laneIndex)
+      return;
 
 
-this.frame=0;
+    this.laneIndex = index;
 
 
-this.animTime=0;
+    this.targetX =
+      laneCenterX(index);
 
 
-this.moving=false;
+    this.setAnimation('run');
 
+  }
 
-this.oneShot=false;
 
 
-this.invulnerableTimer=0;
+  update(dt) {
 
 
+    /*
+     * Smooth movement between four positions
+     */
+    const dx =
+      this.targetX - this.x;
 
-}
 
+    if(Math.abs(dx) > 1) {
 
 
+      const speed =
+        PLAYER.laneMoveSpeed * dt;
 
 
-/**
- * Move wolf to one of four classic positions
- */
+      this.x +=
+        Math.sign(dx) *
+        Math.min(
+          speed,
+          Math.abs(dx)
+        );
 
-moveByLane(delta){
 
+      this.moving = true;
 
-let next =
-this.laneIndex + delta;
 
+    } else {
 
-next =
-Math.max(
-0,
-Math.min(
-LANES.count-1,
-next
-));
 
+      this.x = this.targetX;
 
-if(next===this.laneIndex)
-return;
+      this.moving = false;
 
+    }
 
 
-this.laneIndex=next;
 
+    if(this.invulnerableTimer > 0)
+      this.invulnerableTimer -= dt * 1000;
 
-this.targetX =
-laneCenterX(next);
 
 
+    if(this.catchFlash > 0)
+      this.catchFlash -= dt;
 
-this.anim='run';
 
 
-}
+    /*
+     * Don't interrupt catch animation
+     */
+    if(!this.oneShot) {
 
+      if(this.moving)
+        this.setAnimation('run');
+      else
+        this.setAnimation('idle');
 
+    }
 
 
+    this.advanceAnimation(dt);
 
-goToLaneIndex(index){
+  }
 
 
-index =
-Math.max(
-0,
-Math.min(
-LANES.count-1,
-index
-));
 
 
-if(index===this.laneIndex)
-return;
 
+  setAnimation(name) {
 
+    if(this.anim === name)
+      return;
 
-this.laneIndex=index;
 
+    if(!this.images[name])
+      return;
 
-this.targetX =
-laneCenterX(index);
 
+    this.anim = name;
 
+    this.frame = 0;
 
-this.anim='run';
+    this.animTime = 0;
 
+  }
 
-}
 
 
 
+  /*
+   * Compatibility with engine.js
+   */
+  playOneShot(name) {
 
-update(dt){
+    if(!this.images[name])
+      return;
 
 
+    this.anim = name;
 
-// smooth movement
+    this.frame = 0;
 
-let dx =
-this.targetX-this.x;
+    this.animTime = 0;
 
+    this.oneShot = true;
 
-if(Math.abs(dx)>1){
 
+    if(name === 'catch')
+      this.catchFlash = 0.12;
 
-let speed =
-PLAYER.laneMoveSpeed*dt;
+  }
 
 
-this.x +=
-Math.sign(dx)*
-Math.min(
-speed,
-Math.abs(dx)
-);
 
+  playCatch() {
 
-this.moving=true;
+    this.playOneShot('catch');
 
+  }
 
-}
-else{
 
 
-this.x=this.targetX;
 
 
-this.moving=false;
+  advanceAnimation(dt) {
 
 
-}
+    const frames =
+      this.images[this.anim];
 
 
+    if(!frames || !frames.length)
+      return;
 
 
-if(this.invulnerableTimer>0)
 
-this.invulnerableTimer -= dt*1000;
+    this.animTime += dt;
 
 
+    const frameTime =
+      1 / (ANIM_FPS[this.anim] || 10);
 
 
-if(!this.oneShot){
 
+    while(this.animTime >= frameTime) {
 
-if(this.moving)
 
-this.setAnimation('run');
+      this.animTime -= frameTime;
 
 
-else
+      this.frame++;
 
-this.setAnimation('idle');
 
 
-}
+      if(this.frame >= frames.length) {
 
 
+        if(this.oneShot) {
 
-this.advanceAnimation(dt);
 
+          this.oneShot = false;
 
+          this.frame = 0;
 
-}
+          this.anim = 'idle';
 
 
+        } else {
 
 
-setAnimation(name){
+          this.frame = 0;
 
+        }
 
-if(this.anim===name)
-return;
+      }
 
+    }
 
-if(!this.images[name])
-return;
+  }
 
 
-this.anim=name;
 
 
-this.frame=0;
 
+  /*
+   * Wide basket area.
+   * Classic catch-game style.
+   */
+  getCatchBox() {
 
-this.animTime=0;
 
+    return {
 
+      x: this.x - 130,
 
-}
+      y: this.y - 100,
 
+      w: 260,
 
+      h: 140
 
+    };
 
-playCatch(){
 
+  }
 
-this.anim='catch';
 
 
-this.frame=0;
 
 
-this.animTime=0;
+  hit() {
 
 
-this.oneShot=true;
+    this.invulnerableTimer =
+      PLAYER.invulnerableMs;
 
 
+  }
 
-}
 
 
 
 
+  isInvulnerable() {
 
-advanceAnimation(dt){
 
+    return this.invulnerableTimer > 0;
 
-let frames =
-this.images[this.anim];
 
+  }
 
-if(!frames || !frames.length)
-return;
 
 
 
-this.animTime += dt;
 
+  draw(ctx) {
 
 
-let speed =
-1/(ANIM_FPS[this.anim]||10);
+    const frames =
+      this.images[this.anim];
 
 
+    if(!frames || !frames.length)
+      return;
 
-while(this.animTime>=speed){
 
 
-this.animTime-=speed;
+    const img =
+      frames[
+        Math.min(
+          this.frame,
+          frames.length - 1
+        )
+      ];
 
 
-this.frame++;
 
+    if(!img.complete)
+      return;
 
 
-if(this.frame>=frames.length){
 
+    ctx.save();
 
 
-if(this.oneShot){
 
+    if(this.invulnerableTimer > 0)
+      ctx.globalAlpha = 0.45;
 
-this.oneShot=false;
 
 
-this.frame=0;
+    /*
+     * Small catch reaction
+     */
+    let offsetY = 0;
 
 
-this.anim='idle';
+    if(this.catchFlash > 0)
+      offsetY = -8;
 
 
 
-}
+    ctx.drawImage(
 
+      img,
 
-else{
+      this.x - this.width / 2,
 
+      this.y - this.height + offsetY,
 
-this.frame=0;
+      this.width,
 
+      this.height
 
-}
+    );
 
 
-}
+    ctx.restore();
 
-
-
-}
-
-
-
-}
-
-
-
-
-/**
- * Basket catch zone
- * Not whole body
- */
-
-getCatchBox(){
-
-
-return {
-
-x:this.x-90,
-
-
-y:this.y-80,
-
-
-w:180,
-
-
-h:100
-
-
-};
-
-
-}
-
-
-
-
-
-hit(){
-
-
-this.invulnerableTimer =
-PLAYER.invulnerableMs;
-
-
-}
-
-
-
-
-
-isInvulnerable(){
-
-
-return this.invulnerableTimer>0;
-
-
-}
-
-
-
-
-draw(ctx){
-
-
-let frames =
-this.images[this.anim];
-
-
-if(!frames || !frames.length)
-return;
-
-
-
-let img =
-frames[
-Math.min(
-this.frame,
-frames.length-1
-)
-];
-
-
-
-if(!img.complete)
-return;
-
-
-
-ctx.save();
-
-
-
-if(this.invulnerableTimer>0)
-
-ctx.globalAlpha =
-0.4;
-
-
-
-ctx.drawImage(
-
-img,
-
-this.x-this.width/2,
-
-this.y-this.height,
-
-this.width,
-
-this.height
-
-);
-
-
-
-ctx.restore();
-
-
-
-}
+  }
 
 
 }
