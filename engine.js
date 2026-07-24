@@ -1,395 +1,727 @@
 /**
  * engine.js
- * -----------------------------------------------------------------------
- * The game loop. Owns the canvas, the update/draw cycle, the play-state
- * machine (menu / playing / paused / gameover), input (keyboard lane-hop
- * + tap/click-a-lane + swipe), responsive scaling, and orchestrates
- * player.js + items.js + effects.js each frame.
+ * Basket Bandit
+ * Classic "Nu, Pogodi!" style gameplay engine
  *
- * engine.js knows nothing about DOM menus/HUD markup - it only emits
- * events (via the tiny EventEmitter below) that ui.js subscribes to.
- * This keeps rendering/simulation cleanly separated from presentation.
- * -----------------------------------------------------------------------
+ * Wolf moves between 4 fixed lanes.
+ * Eggs fall vertically from chickens.
+ * Catch with basket.
  */
-import { DESIGN_WIDTH, DESIGN_HEIGHT, PLAYER, COMBO, EGG, LANES, laneCenterX, laneWidth } from './config.js';
+
+import {
+  DESIGN_WIDTH,
+  DESIGN_HEIGHT,
+  PLAYER,
+  EGG,
+  LANES,
+  laneCenterX,
+  laneWidth
+} from './config.js';
+
 import { Player } from './player.js';
 import { ItemSpawner } from './items.js';
 import * as effects from './effects.js';
 import { getDifficultyForScore } from './levels.js';
 import * as audio from './audio.js';
 
+
 class EventEmitter {
-  constructor() { this.listeners = {}; }
-  on(name, fn) { (this.listeners[name] ||= []).push(fn); return () => this.off(name, fn); }
-  off(name, fn) { this.listeners[name] = (this.listeners[name] || []).filter(f => f !== fn); }
-  emit(name, payload) { (this.listeners[name] || []).forEach(fn => { try { fn(payload); } catch (e) { console.error(`[engine] listener for "${name}" threw:`, e); } }); }
+
+  constructor(){
+    this.listeners={};
+  }
+
+  on(name,fn){
+    (this.listeners[name] ||= []).push(fn);
+  }
+
+  emit(name,data){
+    (this.listeners[name]||[]).forEach(fn=>{
+      try{
+        fn(data);
+      }catch(e){
+        console.error(e);
+      }
+    });
+  }
 }
 
+
 export const STATE = Object.freeze({
-  LOADING: 'loading',
-  MENU: 'menu',
-  PLAYING: 'playing',
-  PAUSED: 'paused',
-  GAMEOVER: 'gameover'
+
+  LOADING:'loading',
+  MENU:'menu',
+  PLAYING:'playing',
+  PAUSED:'paused',
+  GAMEOVER:'gameover'
+
 });
 
-const SWIPE_THRESHOLD_PX = 40; // design-space px for a horizontal swipe to count as a lane change
+
+const SWIPE_DISTANCE = 40;
+
+
 
 export class GameEngine {
-  constructor(canvas, images) {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext('2d', { alpha: false });
-    this.images = images;
-    this.events = new EventEmitter();
 
-    this.player = new Player(images.player);
-    this.spawner = new ItemSpawner(images.egg);
 
-    this.state = STATE.LOADING;
-    this.lastTime = 0;
-    this.spawnTimer = 0;
+constructor(canvas,images){
 
-    this.scoreState = this._freshRunState();
+  this.canvas=canvas;
 
-    this.chickenBob = 0;
-    this._resizeHandler = () => this.handleResize();
-    window.addEventListener('resize', this._resizeHandler);
-    window.addEventListener('orientationchange', this._resizeHandler);
+  this.ctx=canvas.getContext(
+    '2d',
+    {alpha:false}
+  );
 
-    this._bindInput();
-    this.handleResize();
-  }
+  this.images=images;
 
-  _freshRunState() {
-    return {
-      score: 0,
-      lives: PLAYER.startLives,
-      combo: 0,
-      comboMultiplier: 1,
-      bestComboThisRun: 0,
-      catchesThisRun: 0,
-      missesThisRun: 0,
-      level: 1,
-      fallSpeed: 300,
-      spawnInterval: 900
-    };
-  }
+  this.events=new EventEmitter();
 
-  // ---------------------------------------------------------------------
-  // Public state transitions
-  // ---------------------------------------------------------------------
-  goToMenu() {
-    this.state = STATE.MENU;
-    this.events.emit('stateChange', this.state);
-  }
 
-  startRun() {
-    this.scoreState = this._freshRunState();
-    this.player.reset();
-    this.spawner.reset();
-    effects.resetEffects();
-    this.spawnTimer = 0;
-    this.state = STATE.PLAYING;
-    this.events.emit('stateChange', this.state);
-    this.events.emit('scoreUpdate', this._hudSnapshot());
-  }
+  this.player=new Player(
+    images.player
+  );
 
-  pause() {
-    if (this.state !== STATE.PLAYING) return;
-    this.state = STATE.PAUSED;
-    this.events.emit('stateChange', this.state);
-  }
 
-  resume() {
-    if (this.state !== STATE.PAUSED) return;
-    this.state = STATE.PLAYING;
-    this.lastTime = performance.now();
-    this.events.emit('stateChange', this.state);
-  }
+  this.spawner=new ItemSpawner(
+    images.egg
+  );
 
-  _endRun() {
-    this.state = STATE.GAMEOVER;
-    const s = this.scoreState;
-    const isNewBest = this._isNewBest(s.score);
-    this.player.playOneShot(isNewBest ? 'victory' : 'lose');
-    if (isNewBest) audio.playVictoryFanfare(); else audio.playGameOver();
-    this.events.emit('runEnded', {
-      isNewBest,
-      score: s.score,
-      level: s.level,
-      catchesThisRun: s.catchesThisRun,
-      bestComboThisRun: s.bestComboThisRun,
-      missesThisRun: s.missesThisRun
-    });
-    this.events.emit('stateChange', this.state);
-  }
 
-  _isNewBest(score) {
-    // engine stays decoupled from storage.js; ui.js passes the previous
-    // best in via this hook if it wants victory/lose to reflect it.
-    return typeof this.getBestScore === 'function' ? score > this.getBestScore() : false;
-  }
+  this.state=STATE.LOADING;
 
-  // ---------------------------------------------------------------------
-  // Input - keyboard (discrete lane hop), pointer tap-a-lane, and swipe
-  // ---------------------------------------------------------------------
-  _bindInput() {
-    window.addEventListener('keydown', (e) => {
-      if (e.repeat) return; // one press = one lane hop, no OS auto-repeat spam
-      if (this.state === STATE.PLAYING) {
-        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') this.player.moveByLane(-1);
-        if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') this.player.moveByLane(1);
-      }
-      if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
-        if (this.state === STATE.PLAYING) this.pause();
-        else if (this.state === STATE.PAUSED) this.resume();
-      }
-    });
 
-    const toDesignX = (clientX) => {
-      const rect = this.canvas.getBoundingClientRect();
-      const ratio = DESIGN_WIDTH / rect.width;
-      return (clientX - rect.left) * ratio;
-    };
-    const laneAtDesignX = (x) => Math.max(0, Math.min(LANES.count - 1, Math.floor(x / laneWidth())));
+  this.lastTime=0;
 
-    let dragStartX = null;
-    let dragHandled = false;
+  this.spawnTimer=0;
 
-    this.canvas.addEventListener('pointerdown', (e) => {
-      audio.unlockAudio();
-      if (this.state !== STATE.PLAYING) return;
-      dragStartX = toDesignX(e.clientX);
-      dragHandled = false;
-    });
 
-    window.addEventListener('pointermove', (e) => {
-      if (dragStartX === null || dragHandled || this.state !== STATE.PLAYING) return;
-      const x = toDesignX(e.clientX);
-      if (Math.abs(x - dragStartX) >= SWIPE_THRESHOLD_PX) {
-        this.player.moveByLane(x > dragStartX ? 1 : -1);
-        dragHandled = true; // one swipe = one lane hop until release
-      }
-    });
+  // последовательность куриц
+  this.nextEggLane=0;
 
-    window.addEventListener('pointerup', (e) => {
-      if (dragStartX !== null && !dragHandled && this.state === STATE.PLAYING) {
-        // treated as a tap, not a swipe -> jump straight to the tapped lane
-        this.player.goToLaneIndex(laneAtDesignX(toDesignX(e.clientX)));
-      }
-      dragStartX = null;
-      dragHandled = false;
-    });
 
-    window.addEventListener('pointercancel', () => {
-      dragStartX = null;
-      dragHandled = false;
-    });
-  }
+  this.scoreState=this.newGame();
 
-  // ---------------------------------------------------------------------
-  // Responsive canvas scaling (design resolution -> real device pixels).
-  // The canvas's immediate parent ("#stage") is resized to the letterboxed
-  // CSS size; the canvas and the DOM UI overlay both fill #stage at 100%,
-  // so the overlay always lines up with the canvas with no separate math.
-  // ---------------------------------------------------------------------
-  handleResize() {
-    const stage = this.canvas.parentElement;
-    const wrap = stage.parentElement;
-    const availW = wrap.clientWidth;
-    const availH = wrap.clientHeight;
-    const designRatio = DESIGN_WIDTH / DESIGN_HEIGHT;
-    let cssW = availW;
-    let cssH = availW / designRatio;
-    if (cssH > availH) {
-      cssH = availH;
-      cssW = availH * designRatio;
-    }
-    stage.style.width = `${cssW}px`;
-    stage.style.height = `${cssH}px`;
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-    this.canvas.width = Math.round(DESIGN_WIDTH * dpr);
-    this.canvas.height = Math.round(DESIGN_HEIGHT * dpr);
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  }
+  this.chickenBob=0;
 
-  // ---------------------------------------------------------------------
-  // Main loop
-  // ---------------------------------------------------------------------
-  start() {
-    this.lastTime = performance.now();
-    requestAnimationFrame((t) => this._loop(t));
-  }
 
-  _loop(time) {
-    const dtRaw = (time - this.lastTime) / 1000;
-    this.lastTime = time;
-    const dt = Math.min(dtRaw, 1 / 20); // clamp to avoid huge steps after tab switch
+  this._resizeHandler=()=>this.resize();
 
-    if (this.state === STATE.PLAYING) this._update(dt);
-    this._draw(dt);
 
-    requestAnimationFrame((t) => this._loop(t));
-  }
+  window.addEventListener(
+    'resize',
+    this._resizeHandler
+  );
 
-  _update(dt) {
-    const s = this.scoreState;
-    const diff = getDifficultyForScore(s.score);
-    s.level = diff.level;
-    s.fallSpeed = diff.fallSpeed;
-    s.spawnInterval = diff.spawnInterval;
 
-    this.spawnTimer -= dt * 1000;
-    if (this.spawnTimer <= 0) {
-      this.spawner.spawn(s.fallSpeed);
-      this.spawnTimer = s.spawnInterval;
-    }
+  this.bindInput();
 
-    this.player.update(dt);
+  this.resize();
 
-    const missed = this.spawner.update(dt);
-    for (const item of missed) this._onMiss(item);
+}
 
-    const caught = this.spawner.checkCatches(this.player.getCatchBox());
-    for (const item of caught) this._onCatch(item);
 
-    effects.updateEffects(dt);
 
-    if (s.lives <= 0) {
-      this._endRun();
-      return;
-    }
+newGame(){
 
-    this.events.emit('scoreUpdate', this._hudSnapshot());
-  }
+return {
 
-  _onCatch(item) {
-    const s = this.scoreState;
-    s.catchesThisRun++;
+score:0,
 
-    s.combo++;
-    s.bestComboThisRun = Math.max(s.bestComboThisRun, s.combo);
-    const steps = Math.floor(s.combo / COMBO.stepSize);
-    s.comboMultiplier = Math.min(COMBO.maxMultiplier, 1 + steps * COMBO.multiplierStep);
-    if (s.combo > 0 && s.combo % COMBO.stepSize === 0) audio.playCombo(steps);
+lives:PLAYER.startLives,
 
-    const awarded = Math.round(EGG.score * s.comboMultiplier);
-    s.score += awarded;
+catchesThisRun:0,
 
-    effects.spawnScorePopup(item.x, item.y, `+${awarded}`, '#fff6cf');
-    effects.spawnBurst(item.x, item.y, '#fff1c4', 10);
-    this.player.playOneShot('catch');
-    audio.playCatch();
+missesThisRun:0,
 
-    this.events.emit('catch', { awarded, combo: s.combo, multiplier: s.comboMultiplier });
-  }
+level:1,
 
-  _onMiss(item) {
-    const s = this.scoreState;
-    s.missesThisRun++;
-    s.combo = 0;
-    s.comboMultiplier = 1;
-    if (!this.player.isInvulnerable()) {
-      s.lives = Math.max(0, s.lives - 1);
-      this.player.hit();
-    }
-    effects.triggerShake(10, 0.22);
-    audio.playMiss();
-    this.events.emit('miss', { livesLeft: s.lives, lane: item.lane });
-  }
+fallSpeed:220,
 
-  _hudSnapshot() {
-    const s = this.scoreState;
-    return {
-      score: s.score,
-      lives: s.lives,
-      combo: s.combo,
-      multiplier: s.comboMultiplier,
-      level: s.level
-    };
-  }
+spawnInterval:1400
 
-  // ---------------------------------------------------------------------
-  // Rendering
-  // ---------------------------------------------------------------------
-  _draw(dt) {
-    const ctx = this.ctx;
-    ctx.save();
+};
 
-    const shake = (this.state === STATE.PLAYING) ? effects.getShakeOffset(dt) : { x: 0, y: 0 };
-    ctx.translate(shake.x, shake.y);
+}
 
-    this._drawBackground(dt);
-    this._drawLaneGuides();
 
-    if (this.state === STATE.PLAYING || this.state === STATE.PAUSED || this.state === STATE.GAMEOVER) {
-      this.spawner.draw(ctx);
-      this.player.draw(ctx);
-      effects.drawEffects(ctx);
-    }
 
-    ctx.restore();
 
-    if (this.state === STATE.PAUSED) {
-      ctx.fillStyle = 'rgba(10,14,20,0.55)';
-      ctx.fillRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
-    }
-  }
+goToMenu(){
 
-  _drawBackground(dt) {
-    const ctx = this.ctx;
-    const bg = this.images.background;
-    if (bg && bg.complete) {
-      const scale = Math.max(DESIGN_WIDTH / bg.width, DESIGN_HEIGHT / bg.height);
-      const w = bg.width * scale;
-      const h = bg.height * scale;
-      ctx.drawImage(bg, (DESIGN_WIDTH - w) / 2, (DESIGN_HEIGHT - h) / 2, w, h);
-      // subtle darken/vignette so cartoon foreground sprites stay readable
-      // against the more photographic background art.
-      const grad = ctx.createLinearGradient(0, 0, 0, DESIGN_HEIGHT);
-      grad.addColorStop(0, 'rgba(10,20,35,0.28)');
-      grad.addColorStop(0.5, 'rgba(10,20,35,0.05)');
-      grad.addColorStop(1, 'rgba(10,20,35,0.35)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
-    } else {
-      ctx.fillStyle = '#bcdfff';
-      ctx.fillRect(0, 0, DESIGN_WIDTH, DESIGN_HEIGHT);
-    }
+this.state=STATE.MENU;
 
-    // one hen per lane, gently bobbing
-    this.chickenBob += dt;
-    const chickens = this.images.chickens || [];
-    for (let i = 0; i < LANES.count; i++) {
-      const img = chickens[i % chickens.length];
-      if (!img || !img.complete) continue;
-      const cw = 108;
-      const ch = cw * (img.height / img.width);
-      const x = laneCenterX(i);
-      const bob = Math.sin(this.chickenBob * 1.6 + i) * 5;
-      ctx.drawImage(img, x - cw / 2, 20 + bob, cw, ch);
-    }
-  }
+this.events.emit(
+'stateChange',
+this.state
+);
 
-  /** Faint vertical separators so the 4 lanes read clearly at a glance. */
-  _drawLaneGuides() {
-    const ctx = this.ctx;
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,0.16)';
-    ctx.lineWidth = 2;
-    for (let i = 1; i < LANES.count; i++) {
-      const x = laneWidth() * i;
-      ctx.beginPath();
-      ctx.moveTo(x, 140);
-      ctx.lineTo(x, DESIGN_HEIGHT - 40);
-      ctx.stroke();
-    }
-    ctx.restore();
-  }
+}
 
-  destroy() {
-    window.removeEventListener('resize', this._resizeHandler);
-    window.removeEventListener('orientationchange', this._resizeHandler);
-  }
+
+
+startRun(){
+
+
+this.scoreState=this.newGame();
+
+
+this.player.reset();
+
+this.spawner.reset();
+
+
+this.spawnTimer=700;
+
+
+this.nextEggLane=
+Math.floor(
+Math.random()*LANES.count
+);
+
+
+
+effects.resetEffects();
+
+
+this.state=STATE.PLAYING;
+
+
+this.events.emit(
+'stateChange',
+this.state
+);
+
+
+this.events.emit(
+'scoreUpdate',
+this.hud()
+);
+
+
+}
+
+
+
+
+pause(){
+
+if(this.state!==STATE.PLAYING)
+return;
+
+
+this.state=STATE.PAUSED;
+
+
+this.events.emit(
+'stateChange',
+this.state
+);
+
+
+}
+
+
+
+resume(){
+
+if(this.state!==STATE.PAUSED)
+return;
+
+
+this.state=STATE.PLAYING;
+
+
+this.lastTime=performance.now();
+
+}
+
+
+
+bindInput(){
+
+
+window.addEventListener(
+'keydown',
+e=>{
+
+
+if(this.state!==STATE.PLAYING)
+return;
+
+
+if(
+e.key==='ArrowLeft' ||
+e.key==='a'
+){
+
+this.player.moveByLane(-1);
+
+}
+
+
+if(
+e.key==='ArrowRight' ||
+e.key==='d'
+){
+
+this.player.moveByLane(1);
+
+}
+
+
+});
+
+
+let start=null;
+
+
+
+this.canvas.addEventListener(
+'pointerdown',
+e=>{
+
+if(this.state!==STATE.PLAYING)
+return;
+
+
+audio.unlockAudio();
+
+
+start=e.clientX;
+
+
+});
+
+
+
+window.addEventListener(
+'pointerup',
+e=>{
+
+
+if(start===null)
+return;
+
+
+let dx=e.clientX-start;
+
+
+if(Math.abs(dx)>SWIPE_DISTANCE){
+
+this.player.moveByLane(
+dx>0?1:-1
+);
+
+}
+
+
+start=null;
+
+
+});
+
+
+}
+
+
+
+resize(){
+
+const stage=this.canvas.parentElement;
+const wrap=stage.parentElement;
+
+
+let w=wrap.clientWidth;
+let h=wrap.clientHeight;
+
+
+let ratio=
+DESIGN_WIDTH/DESIGN_HEIGHT;
+
+
+let cw=w;
+let ch=w/ratio;
+
+
+if(ch>h){
+
+ch=h;
+cw=h*ratio;
+
+}
+
+
+stage.style.width=cw+'px';
+stage.style.height=ch+'px';
+
+
+let dpr=Math.min(
+window.devicePixelRatio||1,
+2.5
+);
+
+
+this.canvas.width=
+DESIGN_WIDTH*dpr;
+
+
+this.canvas.height=
+DESIGN_HEIGHT*dpr;
+
+
+this.ctx.setTransform(
+dpr,0,0,dpr,0,0
+);
+
+
+}
+
+
+
+
+
+start(){
+
+this.lastTime=performance.now();
+
+requestAnimationFrame(
+t=>this.loop(t)
+);
+
+}
+
+
+
+
+
+loop(t){
+
+let dt=
+(t-this.lastTime)/1000;
+
+
+this.lastTime=t;
+
+
+dt=Math.min(dt,0.05);
+
+
+
+if(this.state===STATE.PLAYING){
+
+this.update(dt);
+
+}
+
+
+this.draw(dt);
+
+
+
+requestAnimationFrame(
+x=>this.loop(x)
+);
+
+
+}
+
+
+
+
+update(dt){
+
+
+let s=this.scoreState;
+
+
+
+let diff=
+getDifficultyForScore(
+s.score
+);
+
+
+s.level=diff.level;
+
+s.fallSpeed=diff.fallSpeed;
+
+s.spawnInterval=diff.spawnInterval;
+
+
+
+this.spawnTimer-=dt*1000;
+
+
+
+if(this.spawnTimer<=0){
+
+
+
+this.spawner.spawn(
+
+s.fallSpeed,
+
+this.nextEggLane
+
+);
+
+
+
+this.nextEggLane++;
+
+
+if(
+this.nextEggLane>=LANES.count
+)
+this.nextEggLane=0;
+
+
+
+this.spawnTimer=
+s.spawnInterval;
+
+
+}
+
+
+
+this.player.update(dt);
+
+
+
+let missed=
+this.spawner.update(dt);
+
+
+
+missed.forEach(
+x=>this.miss(x)
+);
+
+
+
+let caught=
+this.spawner.checkCatches(
+this.player.getCatchBox()
+);
+
+
+
+caught.forEach(
+x=>this.catch(x)
+);
+
+
+
+if(s.lives<=0){
+
+this.gameOver();
+
+}
+
+
+this.events.emit(
+'scoreUpdate',
+this.hud()
+);
+
+
+}
+
+
+
+
+
+catch(item){
+
+
+let s=this.scoreState;
+
+
+s.catchesThisRun++;
+
+
+s.score+=EGG.score;
+
+
+
+effects.spawnScorePopup(
+item.x,
+item.y,
+'+'+EGG.score,
+'#fff6cf'
+);
+
+
+
+effects.spawnBurst(
+item.x,
+item.y,
+'#fff1c4',
+10
+);
+
+
+
+this.player.playOneShot(
+'catch'
+);
+
+
+audio.playCatch();
+
+
+}
+
+
+
+
+
+miss(){
+
+
+let s=this.scoreState;
+
+
+s.missesThisRun++;
+
+
+s.lives--;
+
+
+this.player.hit();
+
+
+audio.playMiss();
+
+
+}
+
+
+
+hud(){
+
+let s=this.scoreState;
+
+
+return {
+
+score:s.score,
+
+lives:s.lives,
+
+level:s.level,
+
+combo:0,
+
+multiplier:1
+
+};
+
+
+}
+
+
+
+gameOver(){
+
+this.state=STATE.GAMEOVER;
+
+
+this.events.emit(
+'stateChange',
+this.state
+);
+
+
+this.events.emit(
+'runEnded',
+this.scoreState
+);
+
+
+}
+
+
+
+draw(dt){
+
+let ctx=this.ctx;
+
+
+ctx.clearRect(
+0,
+0,
+DESIGN_WIDTH,
+DESIGN_HEIGHT
+);
+
+
+
+this.drawBackground(dt);
+
+
+if(
+this.state===STATE.PLAYING ||
+this.state===STATE.GAMEOVER
+){
+
+this.spawner.draw(ctx);
+
+this.player.draw(ctx);
+
+effects.drawEffects(ctx);
+
+}
+
+
+}
+
+
+
+drawBackground(dt){
+
+
+let ctx=this.ctx;
+
+
+let bg=this.images.background;
+
+
+if(bg && bg.complete){
+
+
+let scale=Math.max(
+DESIGN_WIDTH/bg.width,
+DESIGN_HEIGHT/bg.height
+);
+
+
+ctx.drawImage(
+bg,
+0,
+0,
+bg.width*scale,
+bg.height*scale
+);
+
+
+}
+
+
+}
+
+destroy(){
+
+window.removeEventListener(
+'resize',
+this._resizeHandler
+);
+
+}
+
+
 }
