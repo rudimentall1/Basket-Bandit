@@ -1,8 +1,10 @@
+
 /**
  * config.js
  * Basket Bandit
- * Classic Nu Pogodi lane catcher
+ * Final configuration
  */
+
 
 export const GAME_TITLE = 'Basket Bandit';
 
@@ -11,48 +13,39 @@ export const DESIGN_WIDTH = 720;
 export const DESIGN_HEIGHT = 1280;
 
 
-
-// ----------------------------------------------------
-// 4 classic lanes
-// ----------------------------------------------------
+// -----------------------------
+// LANES
+// -----------------------------
 
 export const LANES = {
-
-  count:4
-
+    count: 4
 };
-
 
 
 export function laneWidth(){
 
-  return DESIGN_WIDTH / LANES.count;
+    return DESIGN_WIDTH / LANES.count;
 
 }
-
 
 
 export function laneCenterX(index){
 
-  return (
-    laneWidth() * index
-    +
-    laneWidth()/2
-  );
+    return laneWidth() * index + laneWidth()/2;
 
 }
 
 
 
-// ----------------------------------------------------
-// Assets
-// ----------------------------------------------------
+// -----------------------------
+// ASSETS
+// -----------------------------
 
 export const ASSETS = {
 
 
 background:
-'assets/background.png',
+'assets/background/background.png',
 
 
 
@@ -60,41 +53,37 @@ player:{
 
 
 idle:{
-dir:'assets/player/idle',
-prefix:'idle',
-count:4
+    dir:'assets/player/idle',
+    prefix:'idle',
+    count:4
 },
-
 
 
 run:{
-dir:'assets/player/running',
-prefix:'run',
-count:7
+    dir:'assets/player/run',
+    prefix:'run',
+    count:7
 },
-
 
 
 catch:{
-dir:'assets/player/catch',
-prefix:'catch',
-count:8
+    dir:'assets/player/catch',
+    prefix:'catch',
+    count:8
 },
-
 
 
 victory:{
-dir:'assets/player/victory',
-prefix:'victory',
-count:6
+    dir:'assets/player/victory',
+    prefix:'victory',
+    count:6
 },
 
 
-
 lose:{
-dir:'assets/player/lose',
-prefix:'lose',
-count:7
+    dir:'assets/player/lose',
+    prefix:'lose',
+    count:7
 }
 
 
@@ -106,101 +95,69 @@ count:7
 chickens:[
 
 'assets/chickens/chicken_0.png',
-
 'assets/chickens/chicken_1.png',
-
 'assets/chickens/chicken_2.png',
-
 'assets/chickens/chicken_3.png'
 
 ],
 
 
 
+egg:[
 
-egg:{
+'assets/items/egg/egg_white.png',
+'assets/items/egg/egg_brown.png',
+'assets/items/egg/egg_golden.png',
+'assets/items/egg/egg_cracked.png'
 
-
-dir:
-'assets/items/egg',
-
-
-prefix:
-'egg_white',
-
-
-count:
-1
-
-
-}
-
+]
 
 
 };
 
 
 
-// ----------------------------------------------------
-// Egg
-// ----------------------------------------------------
+// -----------------------------
+// GAME
+// -----------------------------
+
 
 export const EGG = {
 
-
 radius:30,
-
 
 score:10,
 
-
 wobbleFps:6
-
 
 };
 
 
-
-// ----------------------------------------------------
-// Player
-// ----------------------------------------------------
 
 export const PLAYER = {
 
-
 width:160,
-
 
 height:210,
 
+groundY: DESIGN_HEIGHT-170,
 
-groundY:
-DESIGN_HEIGHT-170,
+laneMoveSpeed:2200,
 
+startLives:3,
 
-laneMoveSpeed:
-2200,
+maxLives:5,
 
-
-startLives:
-3,
-
-
-maxLives:
-5,
-
-
-invulnerableMs:
-700
-
+invulnerableMs:700
 
 };
 
 
 
-// ----------------------------------------------------
-// Difficulty
-// ----------------------------------------------------
+// -----------------------------
+// LEVELS
+// -----------------------------
+
 
 export const LEVELS=[
 
@@ -248,87 +205,32 @@ spawnInterval:610
 ];
 
 
-
 export const MAX_FALL_SPEED=700;
-
 
 export const MAX_SPAWN_RATE_MS=380;
 
 
 
-// ----------------------------------------------------
-// Combo
-// ----------------------------------------------------
-
 export const COMBO={
-
 
 stepSize:5,
 
-
 multiplierStep:0.5,
 
-
 maxMultiplier:3
-
 
 };
 
 
 
-// ----------------------------------------------------
-// Achievements
-// ----------------------------------------------------
+// -----------------------------
+// SAVE
+// -----------------------------
 
-export const ACHIEVEMENTS=[
-
-
-{
-id:'first_catch',
-title:'First Catch',
-desc:'Catch first egg',
-check:s=>s.totalCatches>=1
-},
+export const ACHIEVEMENTS=[];
 
 
-{
-id:'combo_10',
-title:'Combo Master',
-desc:'Reach combo 10',
-check:s=>s.bestCombo>=10
-},
-
-
-{
-id:'score_1000',
-title:'Egg Hunter',
-desc:'Score 1000',
-check:s=>s.runScore>=1000
-}
-
-
-];
-
-
-
-// ----------------------------------------------------
-
-export const DAILY_CHALLENGES=[
-
-{
-id:'catch40',
-desc:'Catch 40 eggs',
-target:40
-},
-
-{
-id:'score1500',
-desc:'Score 1500',
-target:1500
-}
-
-];
-
+export const DAILY_CHALLENGES=[];
 
 
 export const STORAGE_PREFIX='basketBandit_';
