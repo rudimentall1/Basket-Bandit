@@ -1,77 +1,78 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
 
 <meta charset="UTF-8">
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-
 <title>Basket Bandit</title>
 
 <link rel="stylesheet" href="style.css">
-
 <link rel="icon" type="image/png" href="assets/favicon/favicon.png">
 
+<script>
+  // Plain (non-module) inline script - runs even when this file is opened
+  // directly as file:///..., where the type="module" script below is
+  // blocked by the browser's CORS rules and never executes at all.
+  // This is the #1 cause of "the game doesn't start": Basket Bandit must
+  // be served over http(s):// (a local static server is enough), not
+  // opened by double-clicking index.html.
+  (function () {
+    function showFatal(message) {
+      var label = document.getElementById('loading-label');
+      var screen = document.getElementById('loading-screen');
+      if (label) label.textContent = message;
+      if (screen) {
+        screen.classList.remove('is-hidden');
+        screen.classList.add('is-error');
+      }
+    }
+
+    if (location.protocol === 'file:') {
+      document.addEventListener('DOMContentLoaded', function () {
+        showFatal(
+          'Игра использует ES-модули и не запускается через двойной клик по файлу (file://). ' +
+          'Запустите локальный сервер в папке игры, например: "python3 -m http.server 8080" ' +
+          'или "npx serve" - затем откройте адрес http://localhost:... в браузере.'
+        );
+      });
+      return;
+    }
+
+    // Resource-load failures (e.g. a script blocked by the browser) only
+    // reach window listeners in the capture phase, hence "true" below.
+    window.addEventListener('error', function (e) {
+      showFatal(e.message || 'Смотрите консоль браузера (F12) для подробностей.');
+    }, true);
+
+    window.addEventListener('unhandledrejection', function (e) {
+      showFatal((e.reason && e.reason.message) || 'Смотрите консоль браузера (F12) для подробностей.');
+    });
+  })();
+</script>
+
 </head>
-
-
 <body>
 
-
 <div id="game-wrapper">
+  <div id="stage">
 
+    <canvas id="game-canvas"></canvas>
+    <div id="ui-root"></div>
 
-    <div id="stage">
-
-
-        <canvas id="game-canvas"></canvas>
-
-
-        <div id="ui-root"></div>
-
-
-        <div id="loading-screen">
-
-
-            <div class="loading-card">
-
-                <div class="loading-title">
-                    Basket Bandit
-                </div>
-
-
-                <div class="loading-label" id="loading-label">
-                    Loading...
-                </div>
-
-
-                <div class="loading-bar">
-
-                    <div 
-                    id="loading-bar-fill"
-                    class="loading-bar-fill">
-                    </div>
-
-                </div>
-
-
-            </div>
-
-
+    <div id="loading-screen">
+      <div class="loading-card">
+        <div class="loading-title">Basket Bandit</div>
+        <div class="loading-label" id="loading-label">Loading...</div>
+        <div class="loading-bar">
+          <div id="loading-bar-fill" class="loading-bar-fill"></div>
         </div>
-
-
+      </div>
     </div>
 
-
+  </div>
 </div>
-
-
 
 <script type="module" src="main.js"></script>
 
-
 </body>
-
 </html>

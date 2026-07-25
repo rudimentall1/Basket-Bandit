@@ -5,180 +5,149 @@
 |--------------------------------------------------------------------------
 */
 
-
 :root {
-
-    --bg-dark:#18212b;
-
-    --panel:#243447;
-
-    --panel-light:#30465c;
-
-    --yellow:#ffd85a;
-
-    --orange:#ff9d2e;
-
-    --white:#ffffff;
-
-    --gray:#b8c5d6;
-
-    --red:#ff6675;
-
-    --green:#63e37c;
-
-    --radius:24px;
-
-    --shadow:
-        0 15px 40px rgba(0,0,0,.45);
-
-    --font:
-        'Baloo 2',
-        'Segoe UI',
-        Arial,
-        sans-serif;
-
+  --bg-dark: #18212b;
+  --panel: #243447;
+  --panel-light: #30465c;
+  --yellow: #ffd85a;
+  --orange: #ff9d2e;
+  --white: #ffffff;
+  --gray: #b8c5d6;
+  --red: #ff6675;
+  --green: #63e37c;
+  --radius: 24px;
+  --shadow: 0 15px 40px rgba(0, 0, 0, .45);
+  --font: 'Baloo 2', 'Segoe UI', Arial, sans-serif;
 }
-
-
-
-
 
 * {
-
-    box-sizing:border-box;
-
+  box-sizing: border-box;
 }
 
-
-
-
-html,
-body {
-
-
-    margin:0;
-
-    padding:0;
-
-    width:100%;
-
-    height:100%;
-
-    overflow:hidden;
-
-    background:#111820;
-
-    font-family:var(--font);
-
-    color:white;
-
-    user-select:none;
-
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #111820;
+  font-family: var(--font);
+  color: white;
+  user-select: none;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Layout
+|--------------------------------------------------------------------------
+| #game-wrapper fills the viewport and centers #stage, which JS then
+| sizes in pixels (via engine.js resize()) to match the design aspect
+| ratio. IDs here must match index.html exactly - a previous revision
+| styled "#game-shell" while the markup used "#game-wrapper", so none
+| of this centering/background ever applied.
+*/
 
-
-
-
-
-
-#game-shell {
-
-
-    position:fixed;
-
-    inset:0;
-
-    display:flex;
-
-    justify-content:center;
-
-    align-items:center;
-
-    background:
-
-    radial-gradient(
-        circle at top,
-        #425b73,
-        #111820 70%
-    );
-
+#game-wrapper {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: radial-gradient(circle at top, #425b73, #111820 70%);
 }
-
-
-
-
-
-
-#canvas-wrap {
-
-
-    width:100%;
-
-    height:100%;
-
-    display:flex;
-
-    justify-content:center;
-
-    align-items:center;
-
-}
-
-
-
-
 
 #stage {
-
-
-    position:relative;
-
+  position: relative;
 }
-
-
-
-
-
 
 #game-canvas {
-
-
-    position:absolute;
-
-    inset:0;
-
-    width:100%;
-
-    height:100%;
-
-    display:block;
-
-    border-radius:18px;
-
-    background:#7ec8ff;
-
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 18px;
+  background: #7ec8ff;
 }
-
-
-
-
-
 
 #ui-root {
-
-
-    position:absolute;
-
-    inset:0;
-
-    pointer-events:none;
-
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Loading screen
+|--------------------------------------------------------------------------
+| Previously had zero rules at all, so it rendered as plain unstyled
+| in-flow text, which squashed #stage down to a tiny box instead of
+| filling the screen, and there was nothing hiding it once assets
+| finished loading anyway.
+*/
 
+#loading-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #0d141c;
+  opacity: 1;
+  transition: opacity .35s ease;
+}
 
+#loading-screen.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
 
+#loading-screen.is-error .loading-bar {
+  display: none;
+}
+
+.loading-card {
+  width: 100%;
+  max-width: 320px;
+  padding: 28px;
+  text-align: center;
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--panel-light), var(--panel));
+  box-shadow: var(--shadow);
+  border: 2px solid rgba(255, 255, 255, .12);
+}
+
+.loading-title {
+  font-size: clamp(28px, 8vw, 40px);
+  font-weight: 900;
+  color: var(--yellow);
+  text-shadow: 0 4px 0 #b87900;
+  margin-bottom: 14px;
+}
+
+.loading-label {
+  color: var(--gray);
+  font-size: 15px;
+  line-height: 1.4;
+  margin-bottom: 16px;
+  min-height: 20px;
+}
+
+.loading-bar {
+  width: 100%;
+  height: 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .12);
+  overflow: hidden;
+}
+
+.loading-bar-fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--yellow), var(--orange));
+  transition: width .2s ease;
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -186,209 +155,76 @@ body {
 |--------------------------------------------------------------------------
 */
 
-
-
 .hud {
-
-
-    position:absolute;
-
-    top:0;
-
-    left:0;
-
-    right:0;
-
-    padding:18px;
-
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 18px;
 }
-
-
-
-.hud-row {
-
-
-    display:flex;
-
-    align-items:center;
-
-    gap:12px;
-
-}
-
-
 
 .hud-lives {
-
-
-    display:flex;
-
-    gap:5px;
-
+  display: flex;
+  gap: 5px;
 }
-
-
-
 
 .life {
-
-
-    font-size:28px;
-
-    color:var(--red);
-
-    text-shadow:
-    0 3px 5px rgba(0,0,0,.5);
-
-    transition:.15s;
-
+  font-size: 28px;
+  color: var(--red);
+  text-shadow: 0 3px 5px rgba(0, 0, 0, .5);
+  transition: .15s;
 }
-
-
-
-
 
 .hud-score {
-
-
-    flex:1;
-
-    text-align:center;
-
-    font-size:
-
-    clamp(28px,7vw,52px);
-
-    font-weight:900;
-
-    line-height:1;
-
-    text-shadow:
-
-    0 4px 8px rgba(0,0,0,.6);
-
+  flex: 1;
+  text-align: center;
+  font-size: clamp(28px, 7vw, 52px);
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 4px 8px rgba(0, 0, 0, .6);
 }
-
-
-
-
 
 .hud-level {
-
-
-    margin-top:5px;
-
-    font-size:16px;
-
-    color:var(--yellow);
-
+  margin-top: 5px;
+  font-size: 16px;
+  color: var(--yellow);
 }
-
-
 
 .icon-btn {
-
-
-    pointer-events:auto;
-
-    width:48px;
-
-    height:48px;
-
-
-    border-radius:50%;
-
-
-    border:
-
-    2px solid rgba(255,255,255,.2);
-
-
-    background:
-
-    rgba(0,0,0,.35);
-
-
-    color:white;
-
-
-    font-size:22px;
-
-
-    cursor:pointer;
-
-
-    display:flex;
-
-    justify-content:center;
-
-    align-items:center;
-
-
-    backdrop-filter:blur(5px);
-
-
+  pointer-events: auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .2);
+  background: rgba(0, 0, 0, .35);
+  color: white;
+  font-size: 22px;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  backdrop-filter: blur(5px);
 }
-
-
 
 .icon-btn:active {
-
-
-    transform:scale(.9);
-
+  transform: scale(.9);
 }
-
-
-
-
-
-
 
 .hud-combo {
-
-
-    text-align:center;
-
-    margin-top:8px;
-
-
-    font-size:22px;
-
-
-    font-weight:900;
-
-
-    color:var(--yellow);
-
-
-    opacity:0;
-
-
-    transform:translateY(-10px);
-
-
-    transition:.2s;
-
-
+  text-align: center;
+  margin-top: 8px;
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--yellow);
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: .2s;
 }
-
-
 
 .hud-combo--active {
-
-
-    opacity:1;
-
-    transform:translateY(0);
-
+  opacity: 1;
+  transform: translateY(0);
 }
-
-
-
-
-
-
 
 /*
 |--------------------------------------------------------------------------
@@ -396,151 +232,47 @@ body {
 |--------------------------------------------------------------------------
 */
 
-
-
 .screen {
-
-
-    position:absolute;
-
-
-    inset:0;
-
-
-    display:flex;
-
-
-    justify-content:center;
-
-
-    align-items:center;
-
-
-    background:
-
-    rgba(10,15,22,.55);
-
-
-    padding:20px;
-
-
-    pointer-events:auto;
-
-
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(10, 15, 22, .55);
+  padding: 20px;
+  pointer-events: auto;
 }
-
-
-
-
 
 .menu-card {
-
-
-    width:100%;
-
-
-    max-width:390px;
-
-
-    padding:32px;
-
-
-    text-align:center;
-
-
-    border-radius:var(--radius);
-
-
-    background:
-
-
-    linear-gradient(
-        180deg,
-        var(--panel-light),
-        var(--panel)
-    );
-
-
-    box-shadow:var(--shadow);
-
-
-    border:
-
-    2px solid rgba(255,255,255,.12);
-
-
+  width: 100%;
+  max-width: 390px;
+  padding: 32px;
+  text-align: center;
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--panel-light), var(--panel));
+  box-shadow: var(--shadow);
+  border: 2px solid rgba(255, 255, 255, .12);
 }
-
-
-
-
-
 
 .game-title {
-
-
-    font-size:
-
-    clamp(38px,10vw,56px);
-
-
-    font-weight:900;
-
-
-    color:var(--yellow);
-
-
-    text-shadow:
-
-    0 5px 0 #b87900;
-
-
-    margin-bottom:10px;
-
-
+  font-size: clamp(38px, 10vw, 56px);
+  font-weight: 900;
+  color: var(--yellow);
+  text-shadow: 0 5px 0 #b87900;
+  margin-bottom: 10px;
 }
-
-
-
-
 
 .game-sub {
-
-
-    color:var(--gray);
-
-
-    font-size:18px;
-
-
-    margin-bottom:25px;
-
-
+  color: var(--gray);
+  font-size: 18px;
+  margin-bottom: 25px;
 }
-
-
-
-
 
 .menu-stat {
-
-
-    font-size:18px;
-
-
-    color:white;
-
-
-    margin:15px;
-
-
+  font-size: 18px;
+  color: white;
+  margin: 15px;
 }
-
-
-
-
-
-
 
 /*
 |--------------------------------------------------------------------------
@@ -548,108 +280,34 @@ body {
 |--------------------------------------------------------------------------
 */
 
-
-
 .btn {
-
-
-    width:100%;
-
-
-    padding:16px;
-
-
-    margin-top:12px;
-
-
-    border-radius:18px;
-
-
-    border:none;
-
-
-    font-size:22px;
-
-
-    font-weight:900;
-
-
-    font-family:inherit;
-
-
-    cursor:pointer;
-
-
-    transition:.15s;
-
-
+  width: 100%;
+  padding: 16px;
+  margin-top: 12px;
+  border-radius: 18px;
+  border: none;
+  font-size: 22px;
+  font-weight: 900;
+  font-family: inherit;
+  cursor: pointer;
+  transition: .15s;
 }
-
-
-
-
 
 .btn:active {
-
-
-    transform:scale(.96);
-
-
+  transform: scale(.96);
 }
-
-
-
-
 
 .btn--primary {
-
-
-    background:
-
-    linear-gradient(
-        180deg,
-        #ffe37a,
-        #ffb52e
-    );
-
-
-    color:#4b3200;
-
-
-    box-shadow:
-
-    0 7px 0 #c68100;
-
-
+  background: linear-gradient(180deg, #ffe37a, #ffb52e);
+  color: #4b3200;
+  box-shadow: 0 7px 0 #c68100;
 }
-
-
-
-
 
 .btn--ghost {
-
-
-    background:
-
-    rgba(255,255,255,.08);
-
-
-    border:
-
-    2px solid rgba(255,255,255,.2);
-
-
-    color:white;
-
-
+  background: rgba(255, 255, 255, .08);
+  border: 2px solid rgba(255, 255, 255, .2);
+  color: white;
 }
-
-
-
-
-
-
 
 /*
 |--------------------------------------------------------------------------
@@ -657,61 +315,21 @@ body {
 |--------------------------------------------------------------------------
 */
 
-
-
 .gameover-score {
-
-
-    font-size:34px;
-
-
-    font-weight:900;
-
-
-    color:var(--yellow);
-
-
-    margin:25px;
-
-
+  font-size: 34px;
+  font-weight: 900;
+  color: var(--yellow);
+  margin: 25px;
 }
 
-
-
-
-
-
-
-@media(max-height:700px){
-
-
-    .menu-card {
-
-
-        padding:20px;
-
-
-    }
-
-
-
-    .game-title {
-
-
-        font-size:36px;
-
-
-    }
-
-
-
-    .btn {
-
-
-        padding:12px;
-
-
-    }
-
-
+@media (max-height: 700px) {
+  .menu-card {
+    padding: 20px;
+  }
+  .game-title {
+    font-size: 36px;
+  }
+  .btn {
+    padding: 12px;
+  }
 }

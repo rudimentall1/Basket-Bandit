@@ -1,242 +1,103 @@
 /**
  * config.js
  * Basket Bandit
- * Classic Nu Pogodi style
+ *
+ * Central tuning + asset-path config. Nothing here has side effects,
+ * so every other module can safely import from it in any order.
  */
-
 
 export const GAME_TITLE = 'Basket Bandit';
 
-
 export const DESIGN_WIDTH = 720;
 export const DESIGN_HEIGHT = 1280;
-
-
 
 // -----------------------------
 // LANES
 // -----------------------------
 
 export const LANES = {
-    count:4
+  count: 4
 };
 
-
-export function laneWidth(){
-    return DESIGN_WIDTH / LANES.count;
+export function laneWidth() {
+  return DESIGN_WIDTH / LANES.count;
 }
 
-
-export function laneCenterX(index){
-    return laneWidth()*index + laneWidth()/2;
+export function laneCenterX(index) {
+  return laneWidth() * index + laneWidth() / 2;
 }
-
-
-
 
 // -----------------------------
 // ASSETS
 // -----------------------------
 
 export const ASSETS = {
+  background: 'assets/background/background.png',
 
+  player: {
+    idle:    { dir: 'assets/player/idle',    prefix: 'idle',    count: 4 },
+    run:     { dir: 'assets/player/run',     prefix: 'run',     count: 7 },
+    catch:   { dir: 'assets/player/catch',   prefix: 'catch',   count: 8 },
+    victory: { dir: 'assets/player/victory', prefix: 'victory', count: 6 },
+    lose:    { dir: 'assets/player/lose',    prefix: 'lose',    count: 7 }
+  },
 
-background:
-'assets/background/background.png',
+  chickens: [
+    'assets/chickens/chicken_0.png',
+    'assets/chickens/chicken_1.png',
+    'assets/chickens/chicken_2.png',
+    'assets/chickens/chicken_3.png'
+  ],
 
-
-
-player:{
-
-
-idle:{
-dir:'assets/player/idle',
-prefix:'idle',
-count:4
-},
-
-
-run:{
-dir:'assets/player/run',
-prefix:'run',
-count:7
-},
-
-
-catch:{
-dir:'assets/player/catch',
-prefix:'catch',
-count:8
-},
-
-
-victory:{
-dir:'assets/player/victory',
-prefix:'victory',
-count:6
-},
-
-
-lose:{
-dir:'assets/player/lose',
-prefix:'lose',
-count:7
-}
-
-
-},
-
-
-
-
-chickens:[
-
-'assets/chickens/chicken_0.png',
-'assets/chickens/chicken_1.png',
-'assets/chickens/chicken_2.png',
-'assets/chickens/chicken_3.png'
-
-],
-
-
-
-
-egg:{
-
-dir:
-'assets/items/egg',
-
-prefix:
-'egg',
-
-count:
-4
-
-}
-
-
+  egg: {
+    frames: [
+      'assets/items/egg/egg_white.png',
+      'assets/items/egg/egg_brown.png',
+      'assets/items/egg/egg_golden.png',
+      'assets/items/egg/egg_cracked.png'
+    ]
+  }
 };
-
-
-
 
 // -----------------------------
 // EGG
 // -----------------------------
 
-
-export const EGG={
-
-radius:30,
-
-score:10,
-
-wobbleFps:6
-
+export const EGG = {
+  radius: 30,
+  score: 10,
+  wobbleFps: 6
 };
-
-
-
 
 // -----------------------------
 // PLAYER
 // -----------------------------
 
-
-export const PLAYER={
-
-
-width:160,
-
-height:210,
-
-
-groundY:
-DESIGN_HEIGHT-170,
-
-
-laneMoveSpeed:2200,
-
-
-startLives:3,
-
-maxLives:3,
-
-
-invulnerableMs:700
-
+export const PLAYER = {
+  width: 160,
+  height: 210,
+  groundY: DESIGN_HEIGHT - 170,
+  laneMoveSpeed: 2200,
+  startLives: 3,
+  maxLives: 3,
+  invulnerableMs: 700
 };
 
-
-
-
 // -----------------------------
-// LEVELS
+// COMBO
 // -----------------------------
 
-
-export const LEVELS=[
-
-
-{
-level:1,
-scoreToReach:0,
-fallSpeed:300,
-spawnInterval:900
-},
-
-
-{
-level:2,
-scoreToReach:250,
-fallSpeed:340,
-spawnInterval:820
-},
-
-
-{
-level:3,
-scoreToReach:600,
-fallSpeed:380,
-spawnInterval:740
-},
-
-
-{
-level:4,
-scoreToReach:1100,
-fallSpeed:420,
-spawnInterval:670
-},
-
-
-{
-level:5,
-scoreToReach:1800,
-fallSpeed:460,
-spawnInterval:610
-}
-
-
-];
-
-
-
-export const COMBO={
-
-stepSize:5,
-
-multiplierStep:0.5,
-
-maxMultiplier:3
-
+export const COMBO = {
+  stepSize: 5,          // catches per combo "step"
+  multiplierStep: 0.5,  // multiplier gained per step
+  maxMultiplier: 3
 };
 
+// -----------------------------
+// Reserved for future features (safe no-ops today)
+// -----------------------------
 
+export const ACHIEVEMENTS = [];
+export const DAILY_CHALLENGES = [];
 
-export const ACHIEVEMENTS=[];
-
-export const DAILY_CHALLENGES=[];
-
-
-export const STORAGE_PREFIX='basketBandit_';
+export const STORAGE_PREFIX = 'basketBandit_';
