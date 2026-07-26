@@ -135,9 +135,11 @@ export class Player {
     }
   }
 
-  /** Wide basket area - classic catch-game forgiveness. */
-  getCatchBox() {
-    return { x: this.x - 130, y: this.y - 100, w: 260, h: 140 };
+  /** Wide basket area - classic catch-game forgiveness. `scale` widens
+   *  it further for the temporary "magnet" power-up. */
+  getCatchBox(scale = 1) {
+    const w = 260 * scale;
+    return { x: this.x - w / 2, y: this.y - 100, w, h: 140 };
   }
 
   hit() {

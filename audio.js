@@ -82,6 +82,21 @@ export function playVictoryFanfare() {
   [523, 659, 784, 1046].forEach((f, i) => tone({ freq: f, duration: 0.22, type: 'triangle', startGain: 0.3, delay: i * 0.11 }));
 }
 
+/** Picked up a heart / star / magnet / clock / gift. */
+export function playPowerUp() {
+  [440, 660, 880].forEach((f, i) => tone({ freq: f, duration: 0.12, type: 'triangle', startGain: 0.3, delay: i * 0.07 }));
+}
+
+/** Caught a bomb or rotten egg without a shield active. */
+export function playHazardHit() {
+  tone({ freq: 180, duration: 0.35, type: 'sawtooth', glideTo: 40, startGain: 0.45 });
+}
+
+/** A hazard bounced off an active shield instead of hurting you. */
+export function playShieldBlock() {
+  tone({ freq: 900, duration: 0.15, type: 'sine', glideTo: 1400, startGain: 0.3 });
+}
+
 export function setMuted(muted) {
   updateSettings({ muted });
   if (masterGain) masterGain.gain.value = muted ? 0 : getSettings().sfxVolume;

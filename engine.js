@@ -10,9 +10,9 @@ import {
   DESIGN_WIDTH,
   DESIGN_HEIGHT,
   PLAYER,
-  LANES,
-  EGG,
-  COMBO
+  COMBO,
+  POWERUPS,
+  BONUS_LIFE_SCORE_STEP
 } from './config.js';
 
 import { Player } from './player.js';
@@ -58,12 +58,13 @@ export class GameEngine {
     this.events = new EventEmitter();
 
     this.player = new Player(images.player);
-    this.spawner = new ItemSpawner(images.egg, images.chickens);
+    this.spawner = new ItemSpawner(images.items, images.chickens, images.chickenAlert);
 
     this.state = STATE.LOADING;
     this.lastTime = 0;
     this.spawnTimer = 0;
     this.shakeOffset = { x: 0, y: 0 };
+    this.buffs = { shieldMs: 0, wideMs: 0, slowMs: 0 };
 
     this.scoreState = this.newGame();
 
@@ -82,7 +83,8 @@ export class GameEngine {
       combo: 0,
       catchesThisRun: 0,
       missesThisRun: 0,
-      bestComboThisRun: 0
+      bestComboThisRun: 0,
+      nextBonusLifeAt: BONUS_LIFE_SCORE_STEP
     };
   }
 
@@ -96,6 +98,7 @@ export class GameEngine {
     this.player.reset();
     this.spawner.reset();
     effects.resetEffects();
+    this.buffs = { shieldMs: 0, wideMs: 0, slowMs: 0 };
 
     this.spawnTimer = 500;
     this.state = STATE.PLAYING;
@@ -118,6 +121,11 @@ export class GameEngine {
 
   bindInput() {
     window.addEventListener('keydown', e => {
+      if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+        if (this.state === STATE.PLAYING) this.pause();
+        else if (this.state === STATE.PAUSED) this.resume();
+        return;
+      }
       if (this.state !== STATE.PLAYING) return;
       if (e.key === 'ArrowLeft' || e.key === 'a') this.player.moveByLane(-1);
       if (e.key === 'ArrowRight' || e.key === 'd') this.player.moveByLane(1);
@@ -180,9 +188,6 @@ export class GameEngine {
       this.update(dt);
     }
 
-    // Effects (score popups, particle bursts, screen shake) keep animating
-    // through PLAYING and the GAMEOVER freeze-frame, but properly freeze
-    // while paused.
     if (this.state === STATE.PLAYING || this.state === STATE.GAMEOVER) {
       effects.updateEffects(dt);
       this.shakeOffset = effects.getShakeOffset(dt);
@@ -199,19 +204,25 @@ export class GameEngine {
     const diff = getDifficultyForScore(s.score);
     s.level = diff.level;
 
+    this.buffs.shieldMs = Math.max(0, this.buffs.shieldMs - dt * 1000);
+    this.buffs.wideMs = Math.max(0, this.buffs.wideMs - dt * 1000);
+    this.buffs.slowMs = Math.max(0, this.buffs.slowMs - dt * 1000);
+    this.spawner.slowFactor = this.buffs.slowMs > 0 ? POWERUPS.slowFactor : 1;
+
     this.spawnTimer -= dt * 1000;
     if (this.spawnTimer <= 0) {
-      this.spawner.spawn(diff.fallSpeed);
+      this.spawner.queueSpawn(diff.fallSpeed);
       this.spawnTimer = diff.spawnInterval;
     }
 
     this.player.update(dt);
 
     const missed = this.spawner.update(dt);
-    missed.forEach(() => this.miss());
+    missed.forEach(item => this.handleMissed(item));
 
-    const caught = this.spawner.checkCatches(this.player.getCatchBox());
-    caught.forEach(egg => this.catch(egg));
+    const catchBox = this.player.getCatchBox(this.buffs.wideMs > 0 ? POWERUPS.wideScale : 1);
+    const caught = this.spawner.checkCatches(catchBox);
+    caught.forEach(item => this.catch(item));
 
     if (s.lives <= 0) {
       this.gameOver();
@@ -220,28 +231,9 @@ export class GameEngine {
     this.events.emit('scoreUpdate', this.hud());
   }
 
-  catch(item) {
-    const s = this.scoreState;
-
-    s.combo++;
-    if (s.combo > s.bestComboThisRun) s.bestComboThisRun = s.combo;
-
-    const multiplier = this.currentMultiplier();
-    const points = Math.round(EGG.score * multiplier);
-    s.score += points;
-    s.catchesThisRun++;
-
-    this.player.playCatch();
-    effects.spawnBurst(item.x, item.y);
-    effects.spawnScorePopup(item.x, item.y, `+${points}`, multiplier > 1 ? '#ffd85a' : '#ffffff');
-    audio.playCatch();
-
-    if (s.combo > 0 && s.combo % COMBO.stepSize === 0) {
-      audio.playCombo(s.combo / COMBO.stepSize);
-    }
-  }
-
-  miss() {
+  /** Shared "you lost a life" path, used by both a missed egg and an
+   *  unshielded hazard catch. */
+  loseLife() {
     const s = this.scoreState;
     s.lives--;
     s.missesThisRun++;
@@ -250,6 +242,122 @@ export class GameEngine {
     this.player.hit();
     effects.triggerShake();
     audio.playMiss();
+  }
+
+  handleMissed(item) {
+    if (item.type.kind === 'hazard') {
+      // Letting a bomb/rotten egg fall past you is the correct play.
+      effects.spawnScorePopup(item.x, DESIGN_HEIGHT - 90, 'Уклонился!', '#8fd3ff');
+      return;
+    }
+    this.loseLife();
+  }
+
+  addScore(points) {
+    const s = this.scoreState;
+    s.score += points;
+
+    while (s.score >= s.nextBonusLifeAt) {
+      s.nextBonusLifeAt += BONUS_LIFE_SCORE_STEP;
+      if (s.lives < PLAYER.maxLives) {
+        s.lives++;
+        effects.spawnScorePopup(this.player.x, this.player.y - 220, '+1 ❤ Бонус!', '#ff6675');
+        audio.playPowerUp();
+      }
+    }
+  }
+
+  catch(item) {
+    const s = this.scoreState;
+    const type = item.type;
+
+    switch (type.kind) {
+      case 'normal':
+      case 'bonus': {
+        s.combo++;
+        if (s.combo > s.bestComboThisRun) s.bestComboThisRun = s.combo;
+
+        const multiplier = this.currentMultiplier();
+        const points = Math.round(type.points * multiplier);
+        this.addScore(points);
+        s.catchesThisRun++;
+
+        this.player.playCatch();
+        effects.spawnBurst(item.x, item.y, type.kind === 'bonus' ? '#ffd85a' : '#ffe9a8');
+        effects.spawnScorePopup(item.x, item.y, `+${points}`, type.kind === 'bonus' ? '#ffd85a' : '#ffffff');
+        audio.playCatch();
+
+        if (s.combo > 0 && s.combo % COMBO.stepSize === 0) {
+          audio.playCombo(s.combo / COMBO.stepSize);
+        }
+        break;
+      }
+
+      case 'life': {
+        this.player.playCatch();
+        if (s.lives < PLAYER.maxLives) {
+          s.lives++;
+          effects.spawnScorePopup(item.x, item.y, '+1 ❤', '#ff6675');
+        } else {
+          this.addScore(20);
+          effects.spawnScorePopup(item.x, item.y, '+20', '#ffffff');
+        }
+        audio.playPowerUp();
+        break;
+      }
+
+      case 'shield': {
+        this.buffs.shieldMs = POWERUPS.shieldMs;
+        this.player.playCatch();
+        effects.spawnScorePopup(item.x, item.y, 'ЩИТ!', '#7ec8ff');
+        audio.playPowerUp();
+        break;
+      }
+
+      case 'wide': {
+        this.buffs.wideMs = POWERUPS.wideMs;
+        this.player.playCatch();
+        effects.spawnScorePopup(item.x, item.y, 'ШИРЕ!', '#63e37c');
+        audio.playPowerUp();
+        break;
+      }
+
+      case 'slow': {
+        this.buffs.slowMs = POWERUPS.slowMs;
+        this.player.playCatch();
+        effects.spawnScorePopup(item.x, item.y, 'СЛОУ-МО!', '#b8c5d6');
+        audio.playPowerUp();
+        break;
+      }
+
+      case 'gift': {
+        this.player.playCatch();
+        const roll = Math.random();
+        if (roll < 0.34) {
+          this.addScore(50);
+          effects.spawnScorePopup(item.x, item.y, '+50', '#ffd85a');
+        } else if (roll < 0.67 && s.lives < PLAYER.maxLives) {
+          s.lives++;
+          effects.spawnScorePopup(item.x, item.y, '+1 ❤', '#ff6675');
+        } else {
+          this.buffs.shieldMs = POWERUPS.shieldMs;
+          effects.spawnScorePopup(item.x, item.y, 'ЩИТ!', '#7ec8ff');
+        }
+        audio.playPowerUp();
+        break;
+      }
+
+      case 'hazard': {
+        if (this.buffs.shieldMs > 0) {
+          effects.spawnScorePopup(item.x, item.y, 'БЛОК!', '#7ec8ff');
+          audio.playShieldBlock();
+        } else {
+          this.loseLife();
+          audio.playHazardHit();
+        }
+        break;
+      }
+    }
   }
 
   currentMultiplier() {
@@ -267,7 +375,10 @@ export class GameEngine {
       lives: s.lives,
       level: s.level,
       combo: s.combo,
-      multiplier: this.currentMultiplier()
+      multiplier: this.currentMultiplier(),
+      shieldMs: this.buffs.shieldMs,
+      wideMs: this.buffs.wideMs,
+      slowMs: this.buffs.slowMs
     };
   }
 
@@ -291,10 +402,24 @@ export class GameEngine {
 
     if (this.state === STATE.PLAYING || this.state === STATE.GAMEOVER) {
       this.spawner.draw(ctx);
+
+      if (this.buffs.shieldMs > 0) this.drawShield(ctx);
+
       this.player.draw(ctx);
       effects.drawEffects(ctx);
     }
 
+    ctx.restore();
+  }
+
+  drawShield(ctx) {
+    const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 120);
+    ctx.save();
+    ctx.strokeStyle = `rgba(126, 200, 255, ${pulse})`;
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.ellipse(this.player.x, this.player.y - 90, 110, 130, 0, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.restore();
   }
 

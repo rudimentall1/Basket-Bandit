@@ -58,12 +58,19 @@ function createUI(root) {
   hud.appendChild(mute);
   hud.appendChild(pause);
 
+  const buffs = create('div', 'hud-buffs');
+
   const menu = create('div', 'screen');
   const card = create('div', 'menu-card');
   card.innerHTML = `
     <div class="game-title">${GAME_TITLE}</div>
-    <div class="game-sub">Catch falling eggs!</div>
+    <div class="game-sub">Лови яйца, уворачивайся от бомб!</div>
     <div class="menu-stat"></div>
+    <div class="menu-hint">
+      ◀ ▶ / A D / свайп — движение · P или Esc — пауза<br>
+      🥚 яйцо · 🌟 золотое яйцо / монета — бонус очки<br>
+      💣 бомба, 🥚 тухлое яйцо — не ловить! · ❤ жизнь · 🛡 щит · 🧲 шире корзина · ⏰ слоу-мо
+    </div>
     <button class="btn btn--primary">START GAME</button>
   `;
   menu.appendChild(card);
@@ -91,12 +98,13 @@ function createUI(root) {
   `;
 
   root.appendChild(hud);
+  root.appendChild(buffs);
   root.appendChild(menu);
   root.appendChild(pauseScreen);
   root.appendChild(gameOver);
 
   return {
-    hud, hearts, score, level, combo, mute, pause,
+    hud, hearts, score, level, combo, mute, pause, buffs,
     menu, start, best,
     pauseScreen,
     resume: pauseScreen.querySelector('.btn--primary'),
@@ -135,6 +143,7 @@ function renderState(state, el) {
   el.pauseScreen.style.display = state === STATE.PAUSED ? 'flex' : 'none';
   el.overScreen.style.display = state === STATE.GAMEOVER ? 'flex' : 'none';
   el.hud.style.display = state === STATE.MENU ? 'none' : 'flex';
+  el.buffs.style.display = state === STATE.MENU ? 'none' : 'flex';
 
   if (state === STATE.MENU) {
     const s = getState();
@@ -156,6 +165,12 @@ function updateHUD(data, el) {
   } else {
     el.combo.classList.remove('hud-combo--active');
   }
+
+  const badges = [];
+  if (data.shieldMs > 0) badges.push(`🛡 ${Math.ceil(data.shieldMs / 1000)}s`);
+  if (data.wideMs > 0) badges.push(`🧲 ${Math.ceil(data.wideMs / 1000)}s`);
+  if (data.slowMs > 0) badges.push(`⏰ ${Math.ceil(data.slowMs / 1000)}s`);
+  el.buffs.innerHTML = badges.map(b => `<span class="buff-badge">${b}</span>`).join('');
 }
 
 function showGameOver(result, el) {

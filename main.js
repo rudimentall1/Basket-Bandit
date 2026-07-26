@@ -8,7 +8,7 @@
  * silent in devtools.
  */
 
-import { ASSETS } from './config.js';
+import { ASSETS, ITEM_TYPES } from './config.js';
 import { GameEngine } from './engine.js';
 import { initUI } from './ui.js';
 
@@ -52,30 +52,32 @@ function loadAnimation(def) {
 }
 
 function countTotalAssets() {
-  let count = 1; // background
+  let count = 2; // background + chicken alert pose
   for (const def of Object.values(ASSETS.player)) count += def.count;
   count += ASSETS.chickens.length;
-  count += ASSETS.egg.frames.length;
+  count += ITEM_TYPES.length;
   return count;
 }
 
 async function preload() {
   total = countTotalAssets();
 
-  const [background, playerEntries, chickens, egg] = await Promise.all([
+  const [background, playerEntries, chickens, chickenAlert, itemEntries] = await Promise.all([
     loadImage(ASSETS.background),
     Promise.all(
       Object.entries(ASSETS.player).map(async ([name, def]) => [name, await loadAnimation(def)])
     ),
     Promise.all(ASSETS.chickens.map(loadImage)),
-    Promise.all(ASSETS.egg.frames.map(loadImage))
+    loadImage(ASSETS.chickenAlert),
+    Promise.all(ITEM_TYPES.map(async t => [t.id, await loadImage(t.image)]))
   ]);
 
   return {
     background,
     player: Object.fromEntries(playerEntries),
     chickens,
-    egg
+    chickenAlert,
+    items: Object.fromEntries(itemEntries)
   };
 }
 
@@ -111,6 +113,10 @@ async function start() {
     const engine = new GameEngine(canvas, images);
     initUI(engine, ui);
     engine.start();
+
+    // Handy for debugging from the browser console - not required by
+    // the game itself.
+    window.__BASKET_BANDIT__ = engine;
 
     hideLoadingScreen();
   } catch (err) {

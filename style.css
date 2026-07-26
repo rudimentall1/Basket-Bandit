@@ -226,6 +226,30 @@ html, body {
   transform: translateY(0);
 }
 
+.hud-buffs {
+  position: absolute;
+  top: 92px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 0 16px;
+  pointer-events: none;
+}
+
+.buff-badge {
+  background: rgba(0, 0, 0, .45);
+  border: 1px solid rgba(255, 255, 255, .25);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: white;
+  backdrop-filter: blur(4px);
+}
+
 /*
 |--------------------------------------------------------------------------
 | Screens
@@ -272,6 +296,16 @@ html, body {
   font-size: 18px;
   color: white;
   margin: 15px;
+}
+
+.menu-hint {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--gray);
+  background: rgba(255, 255, 255, .06);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
 }
 
 /*
